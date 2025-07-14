@@ -1,4 +1,4 @@
-
+import frappe
 
 def main(doc,method):
 	"""
