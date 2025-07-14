@@ -55,5 +55,5 @@ def main(doc,method):
 				frappe.db.set_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf', next_ncf+1)
 		
 		elif doc.name.count('-') == 4:
-			doc.custom_ncf = frappe.db.get_value('Sales Invoice', doc.name[:19],'ncf') #toma el ncf de la factura cancelada original
+			doc.custom_ncf = frappe.db.get_value('Sales Invoice', doc.name[:19],'custom_ncf') #toma el ncf de la factura cancelada original
 		
