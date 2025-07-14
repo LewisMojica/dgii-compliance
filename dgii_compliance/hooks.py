@@ -4,7 +4,7 @@ app_publisher = "Lewis Mojica"
 app_description = "Automates NCF sequence management, assigns NCF to invoices, generates DGII reports, and manages the complete NCF sequences lifecycle for Dominican businesses"
 app_email = "lewismojica3@gmail.com"
 app_license = "gpl-3.0"
-
+fixtures = [{"doctype": "Custom Field", "filters": [["fieldname", "like", "custom_%"]]}]
 # Apps
 # ------------------
 
