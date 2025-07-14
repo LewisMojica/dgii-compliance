@@ -9,7 +9,7 @@ You can install this app using the [bench](https://github.com/frappe/bench) CLI:
 ```bash
 cd $PATH_TO_YOUR_BENCH
 bench get-app https://github.com/LewisMojica/dgii-compliance --branch main
-bench install-app dgii_compliance
+bench --site $YOUR_SITE_NAME install-app dgii_compliance
 ```
 ### License
 
