@@ -1,0 +1,70 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-07-12 17:17:30.952534",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "start",
+  "end",
+  "enable",
+  "siguiente_ncf"
+ ],
+ "fields": [
+  {
+   "fieldname": "start",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Inicio de secuencia",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "end",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Final de secuencia",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enable",
+   "fieldtype": "Check",
+   "label": "Secuencia activa"
+  },
+  {
+   "fieldname": "siguiente_ncf",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Siguiente NCF",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-07-12 17:20:08.354436",
+ "modified_by": "Administrator",
+ "module": "DGII Compliance",
+ "name": "Secuencia NCF",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
