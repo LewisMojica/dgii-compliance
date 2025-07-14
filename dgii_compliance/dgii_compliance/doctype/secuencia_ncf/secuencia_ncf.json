@@ -5,10 +5,11 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "expiration_date",
   "start",
   "end",
   "enable",
-  "siguiente_ncf"
+  "next_ncf"
  ],
  "fields": [
   {
@@ -34,7 +35,13 @@
    "label": "Secuencia activa"
   },
   {
-   "fieldname": "siguiente_ncf",
+   "fieldname": "expiration_date",
+   "fieldtype": "Date",
+   "label": "Vencimiento de secuencia",
+   "reqd": 1
+  },
+  {
+   "fieldname": "next_ncf",
    "fieldtype": "Int",
    "in_list_view": 1,
    "label": "Siguiente NCF",
@@ -44,7 +51,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-12 17:20:08.354436",
+ "modified": "2025-07-12 17:21:54.036673",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "Secuencia NCF",
