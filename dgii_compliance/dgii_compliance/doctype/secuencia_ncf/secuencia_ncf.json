@@ -1,6 +1,6 @@
 {
  "actions": [],
- "allow_rename": 1,
+ "autoname": "autoincrement",
  "creation": "2025-07-12 17:17:30.952534",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -51,10 +51,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-12 20:46:50.332512",
+ "modified": "2025-07-12 20:51:37.184477",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "Secuencia NCF",
+ "naming_rule": "Autoincrement",
  "owner": "Administrator",
  "permissions": [
   {
