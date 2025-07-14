@@ -8,7 +8,7 @@
   "expiration_date",
   "start",
   "end",
-  "enable",
+  "enabled",
   "next_ncf"
  ],
  "fields": [
@@ -29,12 +29,6 @@
    "reqd": 1
   },
   {
-   "default": "0",
-   "fieldname": "enable",
-   "fieldtype": "Check",
-   "label": "Secuencia activa"
-  },
-  {
    "fieldname": "expiration_date",
    "fieldtype": "Date",
    "label": "Vencimiento de secuencia",
@@ -46,12 +40,18 @@
    "in_list_view": 1,
    "label": "Siguiente NCF",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Secuencia activa"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-12 17:21:54.036673",
+ "modified": "2025-07-12 20:46:50.332512",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "Secuencia NCF",
