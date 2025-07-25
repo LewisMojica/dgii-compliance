@@ -10,10 +10,8 @@ def main(doc,method):
 	Args:
 	doc: Sales Invoice document to process
 	"""
-	print('klklklklk')
 	if doc.is_pos:
 		doc.custom_tipo_de_factura = 'Consumidor final'
-	print('jajajajaj')
 
 	if doc.custom_tipo_de_factura== 'Valor fiscal':
 		if doc.name.count('-') == 3:
