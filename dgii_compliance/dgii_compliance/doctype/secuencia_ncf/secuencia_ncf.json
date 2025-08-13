@@ -8,8 +8,9 @@
   "expiration_date",
   "start",
   "end",
-  "enabled",
-  "next_ncf"
+  "disabled",
+  "next_ncf",
+  "ncf_type"
  ],
  "fields": [
   {
@@ -43,16 +44,22 @@
   },
   {
    "default": "0",
-   "fieldname": "enabled",
+   "fieldname": "disabled",
    "fieldtype": "Check",
-   "label": "Secuencia activa"
+   "label": "Desactivar"
+  },
+  {
+   "fieldname": "ncf_type",
+   "fieldtype": "Select",
+   "label": "Tipo de NCF",
+   "options": "B01 (Consumidor Final)\nB02 (Persona Jur\u00eddica/Empresa)"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-12 20:51:37.184477",
- "modified_by": "Administrator",
+ "modified": "2025-08-13 18:38:50.083069",
+ "modified_by": "lewis@gg.com",
  "module": "DGII Compliance",
  "name": "Secuencia NCF",
  "naming_rule": "Autoincrement",
