@@ -9,6 +9,9 @@ doc_events = {
 	"Sales Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
 	"POS Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
 }
+doctype_js = { 
+	'Customer': "public/js/customer.js",
+}
 scheduler_events = {
 	'daily': [
 		'dgii_compliance.utils.sync_dgii_rnc_data'
