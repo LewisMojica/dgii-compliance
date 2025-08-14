@@ -6,6 +6,7 @@ def main(doc,method):
 
 	- New invoices (3 dashes): generates sequential NCF from enabled sequences
 	- Cancelled invoices (4 dashes): copies NCF from original invoice
+	note: doc may be a POS Invoice or a Sales Invoice
 
 	Args:
 	doc: Sales Invoice document to process
