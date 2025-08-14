@@ -5,7 +5,10 @@ app_description = "Automates NCF sequence management, assigns NCF to invoices, g
 app_email = "lewismojica3@gmail.com"
 app_license = "gpl-3.0"
 fixtures = [{"doctype": "Custom Field", "filters": [["fieldname", "like", "custom_%"], ["module", "=", "DGII Compliance"]]}]
-doc_events = {"Sales Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]}}
+doc_events = {
+	"Sales Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
+	"POS Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
+}
 # Apps
 # ------------------
 
