@@ -11,7 +11,8 @@ def main(doc,method):
 	Args:
 	doc: Sales Invoice document to process
 	"""
-	if doc.is_pos: #si la factura viene del POS no aplica para dgii, hay que aplicar los ncf a las factura pos individuales
+	print(doc.doctype)
+	if doc.is_pos and doc.doctype == 'Sales Invoice': #si la factura viene del POS no aplica para dgii, hay que aplicar los ncf a las factura pos individuales
 		doc.custom_factura_de_valor_fiscal = 0 
 		print('Es factura POS')
 		return
