@@ -52,13 +52,13 @@
    "fieldname": "ncf_type",
    "fieldtype": "Select",
    "label": "Tipo de NCF",
-   "options": "B01 (Consumidor Final)\nB02 (Persona Jur\u00eddica/Empresa)"
+   "options": "B01\nB02"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-08-13 18:38:50.083069",
+ "modified": "2025-08-13 20:06:29.306574",
  "modified_by": "lewis@gg.com",
  "module": "DGII Compliance",
  "name": "Secuencia NCF",
