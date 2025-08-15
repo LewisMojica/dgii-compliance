@@ -1,6 +1,6 @@
 frappe.ui.form.on('Customer', {
     custom_validar_datos_en_dgii: function(frm) {
-        if (!frm.doc.tax_id) {
+        if (!frm.doc.custom_rnc) {
             frappe.msgprint(__('Please enter RNC first'));
             return;
         }
@@ -13,7 +13,7 @@ frappe.ui.form.on('Customer', {
         frappe.call({
             method: 'dgii_compliance.utils.get_company_data_by_rnc',
             args: {
-                rnc: frm.doc.tax_id
+                rnc: frm.doc.custom_rnc
             },
             callback: function(r) {
                 if (r.message && r.message.success) {
