@@ -4,10 +4,11 @@ app_publisher = "Lewis Mojica"
 app_description = "Automates NCF sequence management, assigns NCF to invoices, generates DGII reports, and manages the complete NCF sequences lifecycle for Dominican businesses"
 app_email = "lewismojica3@gmail.com"
 app_license = "gpl-3.0"
-fixtures = [{"doctype": "Custom Field", "filters": [["fieldname", "like", "custom_%"], ["module", "=", "DGII Compliance"]]}]
+fixtures = [{"doctype": "Custom Field", "filters": { "module": "DGII Compliance" }}]
 doc_events = {
 	"Sales Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
 	"POS Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
+	'Customer': {'validate': ['dgii_compliance.dgii_compliance.validate.customer']}
 }
 doctype_js = { 
 	'Customer': "public/js/customer.js",
