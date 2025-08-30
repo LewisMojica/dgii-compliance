@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"HyXiGKVw8N\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">DGII Compliance</span>\",\"col\":12}},{\"id\":\"9D30cu1eNU\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Lista de secuencias NCF\",\"col\":3}},{\"id\":\"mIvUpTfnjV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Crear secuencia NCF\",\"col\":3}}]",
+ "content": "[{\"id\":\"HyXiGKVw8N\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">DGII Compliance</span>\",\"col\":12}},{\"id\":\"9D30cu1eNU\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Lista de secuencias NCF\",\"col\":3}},{\"id\":\"mIvUpTfnjV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Crear secuencia NCF\",\"col\":3}},{\"id\":\"bmCHp3kfEf\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Settings\",\"col\":3}}]",
  "creation": "2025-08-30 16:53:27.357548",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "DGII Compliance",
  "links": [],
- "modified": "2025-08-30 17:02:40.085822",
+ "modified": "2025-08-30 19:15:42.154386",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "DGII Compliance",
@@ -31,6 +31,13 @@
    "label": "Lista de secuencias NCF",
    "link_to": "Secuencia NCF",
    "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Settings",
+   "link_to": "DGII Compliance Settings",
    "type": "DocType"
   },
   {
