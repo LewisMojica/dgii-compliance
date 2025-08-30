@@ -114,7 +114,7 @@
   "width": null
  },
  {
-  "allow_in_quick_entry": 0,
+  "allow_in_quick_entry": 1,
   "allow_on_submit": 0,
   "bold": 0,
   "collapsible": 0,
@@ -147,7 +147,7 @@
   "length": 0,
   "link_filters": null,
   "mandatory_depends_on": null,
-  "modified": "2025-08-14 22:38:32.252803",
+  "modified": "2025-08-19 01:02:08.628289",
   "module": "DGII Compliance",
   "name": "Customer-custom_rnc",
   "no_copy": 0,
@@ -399,7 +399,7 @@
   "width": null
  },
  {
-  "allow_in_quick_entry": 0,
+  "allow_in_quick_entry": 1,
   "allow_on_submit": 0,
   "bold": 0,
   "collapsible": 0,
@@ -432,7 +432,7 @@
   "length": 0,
   "link_filters": null,
   "mandatory_depends_on": null,
-  "modified": "2025-08-14 23:03:39.596648",
+  "modified": "2025-08-19 01:01:55.097931",
   "module": "DGII Compliance",
   "name": "Customer-custom_validar_datos_en_dgii",
   "no_copy": 0,
