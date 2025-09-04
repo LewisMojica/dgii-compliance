@@ -25,7 +25,7 @@ def main(doc,method):
 	
 	if doc.custom_factura_de_valor_fiscal:
 		customer_type = frappe.get_value('Customer', doc.customer, 'customer_type')
-		ncf_type = 'B02' if customer_type == 'Company' else 'B01'
+		ncf_type = 'B01' if customer_type == 'Company' else 'B02'
 		ncf_seq_list = frappe.get_all('Secuencia NCF', filters = {'disabled': 0, 'ncf_type': ncf_type})
 		
 		#error check
