@@ -1,6 +1,7 @@
 import frappe
-
 def after_migrate():
+	after_sync()
+def after_sync():
 	if _customer_groups_exists():
 		return
 	else:
@@ -48,4 +49,5 @@ def _create_customer_groups():
 	b14.save()	
 
 	print(f'[dgii_compliance]-> created {reg_es.name} and {b14.name}')
+
 
