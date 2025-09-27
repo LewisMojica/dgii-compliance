@@ -12,7 +12,6 @@ def _customer_groups_exists():
 	group = frappe.db.get_all('Customer Group', 
 		filters={
 			'name': 'B14',
-			'parent_customer_group': 'Regímenes Especiales'
 		})
 	
 	group += frappe.db.get_all('Customer Group', 
@@ -22,7 +21,7 @@ def _customer_groups_exists():
 
 	le = len(group)
 	if le > 0 and le != 2:
-		print('[dgii_compliance]-> WARNNING! OBORTED CUSTOMER GROUP CREATION')	
+		print('[dgii_compliance]-> WARNNING! ABORTED CUSTOMER GROUP CREATION')	
 	return len(group) != 0
 
 def _create_customer_groups():
