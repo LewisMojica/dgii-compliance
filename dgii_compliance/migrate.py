@@ -20,7 +20,9 @@ def _customer_groups_exists():
 			'name': 'Regímenes Especiales',
 		})
 
-
+	le = len(group)
+	if le > 0 and le != 2:
+		print('[dgii_compliance]-> WARNNING! OBORTED CUSTOMER GROUP CREATION')	
 	return len(group) != 0
 
 def _create_customer_groups():
