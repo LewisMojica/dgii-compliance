@@ -7,8 +7,7 @@ app_license = "gpl-3.0"
 fixtures = [
 	{"doctype": "Custom Field", "filters": { "module": "DGII Compliance" }},
 	{'doctype': 'Property Setter', 'filters': {'module': 'DGII Compliance'}},
-	{'doctype': 'Customer Group', 'filters': {'name': 'Regímenes Especiales'}},
-	{'doctype': 'Customer Group', 'filters': {'name': 'B14'}},
+	{'doctype': 'Customer Group', 'filters': {'name': ['in', ['Regímenes Especiales', 'B14']]}},
 ]
 doc_events = {
 	"Sales Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
