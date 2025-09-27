@@ -1,0 +1,16 @@
+[
+ {
+  "accounts": [],
+  "credit_limits": [],
+  "customer_group_name": "B14",
+  "default_price_list": null,
+  "docstatus": 0,
+  "doctype": "Customer Group",
+  "is_group": 0,
+  "modified": "2025-09-26 23:36:28.081412",
+  "name": "B14",
+  "old_parent": "Regímenes Especiales",
+  "parent_customer_group": "Regímenes Especiales",
+  "payment_terms": null
+ }
+]
