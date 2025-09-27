@@ -28,22 +28,17 @@ def _create_customer_groups():
 	print(f'root group: {root_group}')
 
 	#create new custumer groups
-	reg_es = frappe.get_doc({
-		'doctype': 'Customer Group',
-		'name': 'Regímenes Especiales',
-		'parent_customer_group': root_group['name'],
-		'is_group': 1,
-		}
-	).save()
-	print(reg_es)
+	reg_es = frappe.new_doc('Customer Group')
+	reg_es.parent_customer_group = root_group['name']
+	reg_es.is_group = 1
+	reg_es.customer_group_name = 'Regímenes Especiales'
+	reg_es.save()	
 
-	b14 = frappe.get_doc({
-		'doctype': 'Customer Group',
-		'name': 'B14',
-		'parent_customer_group': reg_es.name,
-		'is_group': 0,
-		}
-	).save()
+	b14 = frappe.new_doc('Customer Group')
+	b14.parent_customer_group = 'Regímenes Especiales'
+	b14.is_group = 0
+	b14.customer_group_name = 'B14'
+	b14.save()	
 
-	print(f'[dgii_compliance]-> created {reg_es.name} and {b14.name}')	
-	
+	print(f'[dgii_compliance]-> created {reg_es.name} and {b14.name}')
+
