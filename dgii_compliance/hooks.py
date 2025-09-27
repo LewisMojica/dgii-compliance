@@ -22,6 +22,8 @@ scheduler_events = {
 	]
 }
 after_migrate = 'dgii_compliance.migrate.after_migrate'
+after_sync = 'dgii_compliance.migrate.after_sync'
+
 # Apps
 # ------------------
 
