@@ -35,6 +35,7 @@ def _create_customer_groups():
 		'is_group': 1,
 		}
 	).save()
+	print(reg_es)
 
 	b14 = frappe.get_doc({
 		'doctype': 'Customer Group',
