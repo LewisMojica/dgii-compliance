@@ -25,7 +25,7 @@ def main(doc,method):
 	
 	if doc.custom_factura_de_valor_fiscal:
 		customer_type = frappe.get_value('Customer', doc.customer, 'customer_type')
-		ncf_type = 'B01' if customer_type == 'Company' else 'B02'
+		ncf_type = get_ncf_type(frappe.get_doc('Customer',doc.customer))
 		ncf_seq_list = frappe.get_all('Secuencia NCF', filters = {'disabled': 0, 'ncf_type': ncf_type})
 		
 		#error check
@@ -56,11 +56,16 @@ def main(doc,method):
 		#set new ncf
 		if ncf_type == 'B01':
 			formated_ncf = 100000000
-		else:
+		elif ncf_type == 'B02':
 			formated_ncf = 200000000
+		elif ncf_type == 'B14':
+			formated_ncf = 1400000000
+		else:
+			frappe.throw(f'NCF {ncf_type} no es válido')
 			
 		formated_ncf += next_ncf
-		doc.custom_ncf= f'B0{formated_ncf}'
+		formated_ncf = str(formated_ncf).zfill(10)
+		doc.custom_ncf= f'B{formated_ncf}'
 		doc.custom_ncf_vencimiento = frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'expiration_date')
 		
 		if end_ncf == next_ncf: # si se llego al final de la secuencia se deshabilita secuencia de ncf
@@ -69,3 +74,12 @@ def main(doc,method):
 			frappe.db.set_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf', next_ncf+1)
 	
 
+def get_ncf_type(customer):
+	"""returns the ncf type based on customer type and Customer group"""
+	if customer.customer_group == 'B14':
+		return 'B14'
+	if customer.customer_type == 'Company':
+		return 'B01'
+	if customer.customer_type == 'Individual':
+		return 'B02'
+	
