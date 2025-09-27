@@ -14,8 +14,14 @@ def _customer_groups_exists():
 			'name': 'B14',
 			'parent_customer_group': 'Regímenes Especiales'
 		})
+	
+	group += frappe.db.get_all('Customer Group', 
+		filters={
+			'name': 'Regímenes Especiales',
+		})
 
-	return len(group) == 1
+
+	return len(group) != 0
 
 def _create_customer_groups():
 	#query root group
