@@ -21,6 +21,7 @@ scheduler_events = {
 		'dgii_compliance.utils.sync_dgii_rnc_data'
 	]
 }
+after_migrate = 'dgii_compliance.migrate.after_migrate'
 # Apps
 # ------------------
 
