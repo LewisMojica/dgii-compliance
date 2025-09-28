@@ -27,12 +27,17 @@ def _customer_groups_exists():
 
 def _create_customer_groups():
 	#query root group
-	root_group = frappe.db.get_all('Customer Group',
+	root_groups = frappe.db.get_all('Customer Group',
 		filters={
 			'parent_customer_group': '',
 			'is_group': 1,
 		}
-	)[0]
+	)
+	if len(root_groups)!=1:
+		print('[dgii_compliance]-> WARNNING! ABORTED CUSTOMER GROUP CREATION')	
+		return
+		
+	root_group = root_groups[0]
 	print(f'root group: {root_group}')
 
 	#create new custumer groups
