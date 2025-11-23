@@ -14,14 +14,8 @@ def main(doc,method):
 	"""
 	if doc.is_pos and doc.doctype == 'Sales Invoice': #si la factura viene del POS no aplica para dgii, hay que aplicar los ncf a las factura pos individuales
 		doc.custom_factura_de_valor_fiscal = 0
-		#Sales Invoices generated at POS Closing seem to inherite the value of fields, so ncf was getting fille
-		#when it shouldn't, this make sures is empty as this could cause confusion fo accounting
 		doc.custom_ncf = None
 		doc.custom_ncf_vencimiento = None
-		return
-
-	if doc.name.count('-') == 4: #si la factura es amendada de una factura cancelada reutilizar el ncf anterior
-		doc.custom_ncf = frappe.db.get_value('Sales Invoice', doc.name[:19],'custom_ncf') #toma el ncf de la factura cancelada original
 		return
 
 	if doc.custom_factura_de_valor_fiscal:
