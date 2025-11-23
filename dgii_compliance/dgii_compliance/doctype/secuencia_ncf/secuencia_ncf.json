@@ -52,13 +52,13 @@
    "fieldname": "ncf_type",
    "fieldtype": "Select",
    "label": "Tipo de NCF",
-   "options": "B01\nB02\nB14"
+   "options": "B01\nB02\nB14\nE31\nE32"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-26 23:42:30.602832",
+ "modified": "2025-11-23 17:46:48.285659",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "Secuencia NCF",
