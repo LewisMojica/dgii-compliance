@@ -5,6 +5,8 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "facturaci\u00f3n_section",
+  "invoicing_method",
   "actions_section",
   "sync_rnc_data"
  ],
@@ -18,13 +20,27 @@
    "fieldname": "sync_rnc_data",
    "fieldtype": "Button",
    "label": "Sync RNC "
+  },
+  {
+   "fieldname": "facturaci\u00f3n_section",
+   "fieldtype": "Section Break",
+   "label": "Facturaci\u00f3n"
+  },
+  {
+   "default": "NCF",
+   "fieldname": "invoicing_method",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Modo de facturaci\u00f3n",
+   "options": "eNCF\nNCF",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-08-30 18:46:55.085679",
+ "modified": "2025-11-23 16:06:17.951675",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "DGII Compliance Settings",
