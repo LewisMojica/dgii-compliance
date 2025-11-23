@@ -16,6 +16,7 @@ doc_events = {
 doctype_js = {
 	'Customer': "public/js/customer.js",
 	'Sales Invoice': "public/js/sales_invoice.js",
+	'POS Invoice': "public/js/sales_invoice.js",
 }
 scheduler_events = {
 	'daily': [

@@ -1,17 +1,17 @@
-frappe.ui.form.on('Sales Invoice', {
-    onload: function(frm) {
-        // Clear NCF fields when a Sales Invoice is being amended
-        if (frm.doc.amended_from && frm.doc.__islocal) {
-            clear_ncf_fields(frm);
-        }
-    },
-
-    refresh: function(frm) {
-        // Additional check for edge cases
-        if (frm.doc.amended_from && frm.doc.__islocal && !frm.is_new()) {
-            clear_ncf_fields(frm);
-        }
+function handle_invoice_amendment(frm) {
+    if (frm.doc.amended_from && frm.doc.__islocal) {
+        clear_ncf_fields(frm);
     }
+}
+
+frappe.ui.form.on('Sales Invoice', {
+    onload: handle_invoice_amendment,
+    refresh: handle_invoice_amendment
+});
+
+frappe.ui.form.on('POS Invoice', {
+    onload: handle_invoice_amendment,
+    refresh: handle_invoice_amendment
 });
 
 function clear_ncf_fields(frm) {
@@ -19,3 +19,4 @@ function clear_ncf_fields(frm) {
     frm.set_value('custom_ncf', '');
     frm.set_value('custom_ncf_vencimiento', '');
 }
+
