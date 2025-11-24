@@ -19,12 +19,14 @@ def main(doc,method):
 		return
 
 	if doc.custom_factura_de_valor_fiscal:
-		ncf_type = get_ncf_type(frappe.get_doc('Customer',doc.customer))
+
+		invoicing_method = frappe.get_single('DGII Compliance Settings').invoicing_method
+		ncf_type = get_ncf_type(frappe.get_doc('Customer',doc.customer), invoicing_method)
 		ncf_seq_list = frappe.get_all('Secuencia NCF', filters = {'disabled': 0, 'ncf_type': ncf_type})
 
 		#error check
 		if len(ncf_seq_list) == 0:
-			frappe.throw('No existen secuencias de ncf habilitadas. Contacte administrador del sistema')
+			frappe.throw(f'No existen secuencias de ncf habilitadas para el tipo de ncf {ncf_type}. Contacte administrador del sistema')
 		if frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'end') < frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf'): #si el siguiente ncf no supera el ncf final se escribe un nuevo ncf en la factura
 			frappe.throw('next_ncf es mayor que end_ncf. Contacte administrador del sistema')
 		if frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'start') > frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf'): #si el siguiente ncf no supera el ncf final se escribe un nuevo ncf en la factura
@@ -54,12 +56,22 @@ def main(doc,method):
 			formated_ncf = 200000000
 		elif ncf_type == 'B14':
 			formated_ncf = 1400000000
+		elif ncf_type == 'E31':
+			formated_ncf = 3100000000
+		elif ncf_type == 'E32':
+			formated_ncf = 3200000000
 		else:
 			frappe.throw(f'NCF {ncf_type} no es válido')
 
 		formated_ncf += next_ncf
 		formated_ncf = str(formated_ncf).zfill(10)
-		doc.custom_ncf= f'B{formated_ncf}'
+		if invoicing_method == 'NCF':
+			doc.custom_ncf= f'B{formated_ncf}'
+		elif invoicing_method == 'eNCF':
+			doc.custom_ncf= f'E{formated_ncf}'
+		else:
+			frappe.throw('Metodo de facturación no válido, verifique configuración de DGII Compliance Metodo de facturación')
+
 		doc.custom_ncf_vencimiento = frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'expiration_date')
 
 		if end_ncf == next_ncf: # si se llego al final de la secuencia se deshabilita secuencia de ncf
@@ -68,12 +80,23 @@ def main(doc,method):
 			frappe.db.set_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf', next_ncf+1)
 
 
-def get_ncf_type(customer):
+def get_ncf_type(customer, invoicing_method):
 	"""returns the ncf type based on customer type and Customer group"""
-	if customer.customer_group == 'B14':
-		return 'B14'
-	if customer.customer_type == 'Company':
-		return 'B01'
-	if customer.customer_type == 'Individual':
-		return 'B02'
+	if invoicing_method == 'NCF':
+		if customer.customer_group == 'B14':
+			return 'B14'
+		if customer.customer_type == 'Company':
+			return 'B01'
+		if customer.customer_type == 'Individual':
+			return 'B02'
+	elif invoicing_method == 'eNCF':
+		if customer.customer_group == 'B14':
+			frappe.throw('Tipo de NCF no encontrado')
+		if customer.customer_type == 'Company':
+			return 'E31'
+		if customer.customer_type == 'Individual':
+			return 'E32'
+
+	frappe.throw('Tipo de NCF no encontrado, verifique configuración de DGII Compliance Metodo de facturación')
+
 
