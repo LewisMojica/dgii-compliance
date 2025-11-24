@@ -30,17 +30,20 @@ def validate_xml_schema(xml_object, eNCF_type):
         frappe.log_error(f"XML Parse Error: {str(e)}")
         return False
 
-def new_ecf(doc):
+def new_ecf(doc, eNCF_type):
     """
     Creates a new eCF document based on the provided reference document.
 
     Args:
         doc (frappe.model.document.Document): The reference document (e.g., Invoice) to link the eCF to.
+        eNCF_type (str): The type of eNCF to validate against. e.g. 'E31' or 'E32' , etc
 
     Returns:
         frappe.model.document.Document: The newly created and inserted eCF document.
     """
     xml_object = etree.Element('ECF')
+    if not validate_xml_schema(xml_object, eNCF_type):
+        frappe.throw('XML Schema validation failed')
     ecf = frappe.get_doc({
         'doctype': 'eCF',
         'ref_doctype': doc.doctype,

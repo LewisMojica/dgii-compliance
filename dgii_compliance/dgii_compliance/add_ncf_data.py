@@ -69,7 +69,7 @@ def main(doc,method):
 		if invoicing_method == 'NCF':
 			doc.custom_ncf= f'B{formated_ncf}'
 		elif invoicing_method == 'eNCF':
-			new_ecf(doc)
+			new_ecf(doc, ncf_type)
 			doc.custom_ncf= f'E{formated_ncf}'
 		else:
 			frappe.throw('Metodo de facturación no válido, verifique configuración de DGII Compliance Metodo de facturación')
