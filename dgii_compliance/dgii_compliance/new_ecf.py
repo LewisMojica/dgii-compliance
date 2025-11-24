@@ -13,21 +13,24 @@ def validate_xml_schema(xml_object, eNCF_type):
         bool: True if the XML is valid, False otherwise.
     """
     xsd_name_map = {
-        'E31': 'e-CF 31 v1.0.xsd',
-        'E32': 'e-CF 32 v1.0.xsd',
+        'E31': 'e-CF 31 v.1.0.xsd',
+        'E32': 'e-CF 32 v.1.0.xsd',
     }
-    xsd = frappe.get_file_content(frappe.get_app_path('dgii_compliance', 'dgii_compliance', 'xsd', xsd_name_map[eNCF_type]))
+    xsd_path = frappe.get_app_path('dgii_compliance', 'dgii_compliance') + '/xsd/' + xsd_name_map[eNCF_type]
+    print(xsd_path)
     try:
+        with open(xsd_path, 'rb') as xsd_file:
+            xsd_content = xsd_file.read()
         # Parse the XML and XSD
-        xsd_object = etree.fromstring(xsd)
+        xsd_object = etree.fromstring(xsd_content)
 
         # Create an XML Schema object
         schema = etree.XMLSchema(xsd_object)
-
+        print('schema valid')
         # Validate the XML document
         return schema.validate(xml_object)
     except etree.ParseError as e:
-        frappe.log_error(f"XML Parse Error: {str(e)}")
+        print(f"XML Parse Error: {str(e)}")
         return False
 
 def new_ecf(doc, eNCF_type):
@@ -43,6 +46,7 @@ def new_ecf(doc, eNCF_type):
     """
     xml_object = etree.Element('ECF')
     if not validate_xml_schema(xml_object, eNCF_type):
+        print(validate_xml_schema(xml_object, eNCF_type))
         frappe.throw('XML Schema validation failed')
     ecf = frappe.get_doc({
         'doctype': 'eCF',

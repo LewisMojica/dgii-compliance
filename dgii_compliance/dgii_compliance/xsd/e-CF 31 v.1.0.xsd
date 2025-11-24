@@ -473,7 +473,7 @@
     </xs:restriction>
   </xs:simpleType>
 
-  <xs:simpleType name=" IndicadorServicioTodoIncluidoType">
+  <xs:simpleType name="IndicadorServicioTodoIncluidoType">
     <xs:restriction base="xs:integer">
       <xs:enumeration value="1"/> <!--Indicador Servicio Todo Incluido-->
     </xs:restriction>
