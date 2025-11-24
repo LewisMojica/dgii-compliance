@@ -4,17 +4,12 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "ecf",
+  "xml",
   "ref_doctype",
   "ref_name",
   "status"
  ],
  "fields": [
-  {
-   "fieldname": "ecf",
-   "fieldtype": "Long Text",
-   "label": "XML"
-  },
   {
    "fieldname": "ref_doctype",
    "fieldtype": "Link",
@@ -38,13 +33,18 @@
    "label": "Status",
    "options": "pending\naccepted\nrejected",
    "reqd": 1
+  },
+  {
+   "fieldname": "xml",
+   "fieldtype": "Long Text",
+   "label": "XML"
   }
  ],
  "grid_page_length": 50,
  "in_create": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-23 20:49:40.095975",
+ "modified": "2025-11-23 21:01:35.436507",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "eCF",
