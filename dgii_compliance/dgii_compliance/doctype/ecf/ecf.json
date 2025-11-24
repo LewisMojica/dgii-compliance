@@ -1,0 +1,68 @@
+{
+ "actions": [],
+ "creation": "2025-11-23 20:32:15.462984",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "ecf",
+  "ref_doctype",
+  "ref_name",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "ecf",
+   "fieldtype": "Long Text",
+   "label": "XML"
+  },
+  {
+   "fieldname": "ref_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Invoice Type",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ref_name",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Invoice name",
+   "options": "ref_doctype",
+   "reqd": 1
+  },
+  {
+   "default": "pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "pending\naccepted\nrejected",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "in_create": 1,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-23 20:49:40.095975",
+ "modified_by": "Administrator",
+ "module": "DGII Compliance",
+ "name": "eCF",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
