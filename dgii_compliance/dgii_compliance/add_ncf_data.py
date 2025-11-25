@@ -1,5 +1,5 @@
 import frappe
-from .new_ecf import new_ecf
+from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import new_ecf
 
 
 def main(doc,method):
