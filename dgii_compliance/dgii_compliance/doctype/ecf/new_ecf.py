@@ -2,6 +2,7 @@ import frappe
 from lxml import etree
 from lxml.builder import E
 import datetime
+from .signer import sign_ecf
 
 def validate_xml_schema(xml_object, eNCF_type):
 	"""
@@ -59,12 +60,19 @@ def new_ecf(doc, eNCF_type):
 	current_time = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
 	today_date = datetime.datetime.now().strftime("%d-%m-%Y")
 	xml_object = build_xml_ecf_E32(doc)
-
+	"""
 	if not validate_xml_schema(xml_object, eNCF_type):
 		print(validate_xml_schema(xml_object, eNCF_type))
 		frappe.throw('XML Schema validation failed')
-
+	"""
 	xml_string = etree.tostring(xml_object)
+
+	signed_xml_object = sign_ecf(xml_object)
+
+	if not validate_xml_schema(signed_xml_object, eNCF_type):
+		frappe.throw('XML Schema validation failed after sign')
+
+
 	ecf = frappe.get_doc({
 		'doctype': 'eCF',
 		'ref_doctype': doc.doctype,
@@ -79,7 +87,7 @@ def new_ecf(doc, eNCF_type):
 def build_xml_ecf_E32(doc):
 	# 1. Create the Root Element
 	# Note: We can easily add namespaces here as a dict
-	ns_map = {None: "http://www.w3.org/2001/XMLSchema-instance"}
+	ns_map = {'xsi': "http://www.w3.org/2001/XMLSchema-instance"}
 	ecf_root = etree.Element("ECF", nsmap=ns_map)
 
 	# 2. Build the Header (Encabezado)
@@ -156,6 +164,6 @@ def build_xml_ecf_E32(doc):
 	# Placeholder for Signature (Required for schema validation before signing)
 	# Note: We don't build the complex signature internals here, just the wrapper
 	# because the Signer class will overwrite/fill this anyway.
-	sig = etree.SubElement(ecf_root, "Signature")
+	#sig = etree.SubElement(ecf_root, "Signature")
 
 	return ecf_root
