@@ -58,9 +58,9 @@ def main(doc,method):
 		elif ncf_type == 'B14':
 			formated_ncf = 1400000000
 		elif ncf_type == 'E31':
-			formated_ncf = 3100000000
+			formated_ncf = 310000000000
 		elif ncf_type == 'E32':
-			formated_ncf = 3200000000
+			formated_ncf = 320000000000
 		else:
 			frappe.throw(f'NCF {ncf_type} no es válido')
 
