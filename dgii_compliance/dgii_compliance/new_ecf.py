@@ -91,11 +91,11 @@ def build_xml_ecf_E32(doc):
 	# --- IdDoc Section ---
 	iddoc = etree.SubElement(encabezado, "IdDoc")
 	etree.SubElement(iddoc, "TipoeCF").text = "32"
-	etree.SubElement(iddoc, "eNCF").text = 'E320000000001'
+	print(doc.custom_ncf)
+	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
 	etree.SubElement(iddoc, "IndicadorMontoGravado").text = "1"
 	etree.SubElement(iddoc, "TipoIngresos").text = "01"
 	etree.SubElement(iddoc, "TipoPago").text = "01"
-	etree.SubElement(iddoc, "FechaLimitePago").text = '11-02-2025'
 
 	# --- Emisor Section ---
 	emisor = etree.SubElement(encabezado, "Emisor")
