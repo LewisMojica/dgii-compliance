@@ -93,34 +93,32 @@ def build_xml_ecf_E32(doc):
 	etree.SubElement(iddoc, "TipoeCF").text = "32"
 	print(doc.custom_ncf)
 	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
-	etree.SubElement(iddoc, "IndicadorMontoGravado").text = "1"
+	#etree.SubElement(iddoc, "IndicadorMontoGravado").text = "1"
 	etree.SubElement(iddoc, "TipoIngresos").text = "01"
 	etree.SubElement(iddoc, "TipoPago").text = "01"
 
 	# --- Emisor Section ---
 	emisor = etree.SubElement(encabezado, "Emisor")
-	etree.SubElement(emisor, "RNCEmisor").text = "101000000"
-	etree.SubElement(emisor, "RazonSocialEmisor").text = "TU EMPRESA S.R.L."
-	etree.SubElement(emisor, "NombreComercial").text = "TU TIENDA"
-	etree.SubElement(emisor, "Sucursal").text = "01"
-	etree.SubElement(emisor, "DireccionEmisor").text = "CALLE FALSA 123"
-	etree.SubElement(emisor, "Municipio").text = "020103"
-	etree.SubElement(emisor, "Provincia").text = "010000"
-	etree.SubElement(emisor, "FechaEmision").text = '11-02-2025'
+	etree.SubElement(emisor, "RNCEmisor").text = doc.company_tax_id
+	etree.SubElement(emisor, "RazonSocialEmisor").text = doc.company
+	#etree.SubElement(emisor, "NombreComercial").text = "TU TIENDA"
+	#etree.SubElement(emisor, "Sucursal").text = "01"
+	etree.SubElement(emisor, "DireccionEmisor").text = doc.company_address_display
+	#etree.SubElement(emisor, "Municipio").text = "020103"
+	#etree.SubElement(emisor, "Provincia").text = "010000"
+	etree.SubElement(emisor, "FechaEmision").text = datetime.datetime.today().strftime("%d-%m-%Y")
 
 	# --- Comprador Section ---
 	comprador = etree.SubElement(encabezado, "Comprador")
-	# IMPERATIVE BENEFIT: Easy conditional logic
-	#if doc.customer_tax_id:
-	etree.SubElement(comprador, "RNCComprador").text = '132758919'
+	#etree.SubElement(comprador, "RNCComprador").text = '132758919'
 
-	etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name
+	#etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name
 
 	# --- Totales Section ---
 	totales = etree.SubElement(encabezado, "Totales")
-	etree.SubElement(totales, "MontoGravadoTotal").text = f"{doc.total:.2f}"
-	etree.SubElement(totales, "MontoExento").text = "0.00"
-	etree.SubElement(totales, "TotalITBIS").text = f"{doc.total_taxes_and_charges:.2f}"
+	#etree.SubElement(totales, "MontoGravadoTotal").text = f"{doc.total:.2f}"
+	#etree.SubElement(totales, "MontoExento").text = "0.00"
+	#etree.SubElement(totales, "TotalITBIS").text = f"{doc.total_taxes_and_charges:.2f}"
 	etree.SubElement(totales, "MontoTotal").text = f"{doc.grand_total:.2f}"
 
 	# 3. Build Items Loop (DetallesItems)
@@ -132,10 +130,10 @@ def build_xml_ecf_E32(doc):
 		etree.SubElement(item_node, "NumeroLinea").text = str(idx + 1)
 
 		# Nested Table Structure
-		tabla_codigos = etree.SubElement(item_node, "TablaCodigosItem")
-		codigos_item = etree.SubElement(tabla_codigos, "CodigosItem")
-		etree.SubElement(codigos_item, "TipoCodigo").text = "04"
-		etree.SubElement(codigos_item, "CodigoItem").text = item.item_code
+		#tabla_codigos = etree.SubElement(item_node, "TablaCodigosItem")
+		#codigos_item = etree.SubElement(tabla_codigos, "CodigosItem")
+		#etree.SubElement(codigos_item, "TipoCodigo").text = "04"
+		#etree.SubElement(codigos_item, "CodigoItem").text = item.item_code
 
 		# SANDWICH ORDER LOGIC (Facturacion -> Nombre -> BienoServicio)
 		etree.SubElement(item_node, "IndicadorFacturacion").text = "1"
@@ -144,7 +142,6 @@ def build_xml_ecf_E32(doc):
 
 		etree.SubElement(item_node, "CantidadItem").text = f"{item.qty:.2f}"
 		etree.SubElement(item_node, "PrecioUnitarioItem").text = f"{item.rate:.2f}"
-		etree.SubElement(item_node, "DescuentoMonto").text = "0.00"
 		etree.SubElement(item_node, "MontoItem").text = f"{item.amount:.2f}"
 		"""
 		# Subtotals Table
