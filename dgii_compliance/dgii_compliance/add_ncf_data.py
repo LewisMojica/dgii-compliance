@@ -60,6 +60,9 @@ def main(doc,method):
 			formated_ncf = 200000000
 		elif ncf_type == 'B14':
 			formated_ncf = 1400000000
+		elif ncf_type == 'B15':
+			formated_ncf = 1500000000
+
 		else:
 			frappe.throw(f'NCF {ncf_type} no es válido')
 
@@ -78,6 +81,8 @@ def get_ncf_type(customer):
 	"""returns the ncf type based on customer type and Customer group"""
 	if customer.customer_group == 'B14':
 		return 'B14'
+	if customer.customer_group == 'Government':
+		return 'B15'
 	if customer.customer_type == 'Company':
 		return 'B01'
 	if customer.customer_type == 'Individual':
