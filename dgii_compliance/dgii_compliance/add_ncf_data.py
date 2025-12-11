@@ -57,6 +57,8 @@ def main(doc,method):
 			formated_ncf = 200000000
 		elif ncf_type == 'B14':
 			formated_ncf = 1400000000
+		elif ncf_type == 'B15':
+			formated_ncf = 1500000000
 		elif ncf_type == 'E31':
 			formated_ncf = 310000000000
 		elif ncf_type == 'E32':
@@ -85,6 +87,8 @@ def main(doc,method):
 def get_ncf_type(customer, invoicing_method):
 	"""returns the ncf type based on customer type and Customer group"""
 	if invoicing_method == 'NCF':
+		if customer.customer_group == 'Government':
+			return 'B15'
 		if customer.customer_group == 'B14':
 			return 'B14'
 		if customer.customer_type == 'Company':
@@ -92,7 +96,7 @@ def get_ncf_type(customer, invoicing_method):
 		if customer.customer_type == 'Individual':
 			return 'B02'
 	elif invoicing_method == 'eNCF':
-		if customer.customer_group == 'B14':
+		if customer.customer_group in ['B14', 'Government']:
 			frappe.throw('Tipo de NCF no encontrado')
 		if customer.customer_type == 'Company':
 			return 'E31'
@@ -100,5 +104,4 @@ def get_ncf_type(customer, invoicing_method):
 			return 'E32'
 
 	frappe.throw('Tipo de NCF no encontrado, verifique configuración de DGII Compliance Metodo de facturación')
-
 
