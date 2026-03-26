@@ -13,8 +13,12 @@ def main(doc,method):
 	Args:
 	doc: Sales Invoice document to process
 	"""
-	if doc.is_pos and doc.doctype == 'Sales Invoice': #si la factura viene del POS no aplica para dgii, hay que aplicar los ncf a las factura pos individuales
+	if doc.is_pos and doc.is_consolidated and doc.doctype == 'Sales Invoice': #si la factura viene del cierre de sesión POS no aplica para dgii, hay que aplicar los ncf a las factura pos individuales
 		doc.custom_factura_de_valor_fiscal = 0
+		#Sales Invoices generated at POS Closing seem to inherit the value of fields, so ncf was getting filled
+		#when it shouldn't. This makes sure it's empty as this could cause confusion for accounting.
+		#Note: is_consolidated distinguishes POS-closing batch invoices from regular Sales Invoices where
+		#the user simply checked is_pos to record an immediate payment (those should still get an NCF).
 		doc.custom_ncf = None
 		doc.custom_ncf_vencimiento = None
 		return
