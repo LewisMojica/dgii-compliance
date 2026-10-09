@@ -72,6 +72,8 @@ def main(doc,method):
 
 		formated_ncf += next_ncf
 		formated_ncf = str(formated_ncf).zfill(10)
+		doc.custom_ncf_vencimiento = frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'expiration_date')
+
 		if invoicing_method == 'NCF':
 			doc.custom_ncf= f'B{formated_ncf}'
 		elif invoicing_method == 'eNCF':
@@ -79,8 +81,6 @@ def main(doc,method):
 			new_ecf(doc, ncf_type)
 		else:
 			frappe.throw('Metodo de facturación no válido, verifique configuración de DGII Compliance Metodo de facturación')
-
-		doc.custom_ncf_vencimiento = frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'expiration_date')
 
 		if end_ncf == next_ncf: # si se llego al final de la secuencia se deshabilita secuencia de ncf
 			frappe.db.set_value('Secuencia NCF', ncf_seq_list[0], {'disabled': 1, 'next_ncf': -1})

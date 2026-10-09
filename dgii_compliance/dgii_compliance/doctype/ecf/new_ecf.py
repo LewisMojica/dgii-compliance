@@ -59,7 +59,14 @@ def new_ecf(doc, eNCF_type):
 # Helper for current time in DGII format
 	current_time = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
 	today_date = datetime.datetime.now().strftime("%d-%m-%Y")
-	xml_object = build_xml_ecf_E32(doc)
+
+	if eNCF_type == 'E31':
+		xml_object = build_xml_ecf_E31(doc)
+	elif eNCF_type == 'E32':
+		xml_object = build_xml_ecf_E32(doc)
+	else:
+		frappe.throw(f'No existe un generador XML para el tipo de eNCF {eNCF_type}')
+
 	"""
 	if not validate_xml_schema(xml_object, eNCF_type):
 		print(validate_xml_schema(xml_object, eNCF_type))
@@ -83,25 +90,43 @@ def new_ecf(doc, eNCF_type):
 	return ecf
 
 
+def format_dgii_date(value):
+	"""Formats a date value to the DD-MM-YYYY format required by the DGII XSD."""
+	if not value:
+		return None
+	if isinstance(value, str):
+		value = value[:10]
+		for date_format in ("%Y-%m-%d", "%d-%m-%Y"):
+			try:
+				value = datetime.datetime.strptime(value, date_format)
+				break
+			except ValueError:
+				continue
+	return value.strftime("%d-%m-%Y") if hasattr(value, "strftime") else str(value)
 
-def build_xml_ecf_E32(doc):
-	# 1. Create the Root Element
-	# Note: We can easily add namespaces here as a dict
+
+def get_comprador_rnc(doc):
+	"""Returns the buyer's RNC, falling back to the linked Customer's RNC."""
+	return doc.tax_id or frappe.db.get_value('Customer', doc.customer, 'custom_rnc')
+
+
+def build_xml_ecf_E31(doc):
+	"""Builds the XML for an E31 (Factura de Crédito Fiscal Electrónica).
+
+	E31 requires IdDoc/FechaVencimientoSecuencia and the buyer's
+	RNCComprador/RazonSocialComprador, both mandatory in the E31 XSD.
+	"""
 	ns_map = {'xsi': "http://www.w3.org/2001/XMLSchema-instance"}
 	ecf_root = etree.Element("ECF", nsmap=ns_map)
 
-	# 2. Build the Header (Encabezado)
 	encabezado = etree.SubElement(ecf_root, "Encabezado")
-
-	# Version (Mandatory & First)
 	etree.SubElement(encabezado, "Version").text = "1.0"
 
 	# --- IdDoc Section ---
 	iddoc = etree.SubElement(encabezado, "IdDoc")
-	etree.SubElement(iddoc, "TipoeCF").text = "32"
-	print(doc.custom_ncf)
+	etree.SubElement(iddoc, "TipoeCF").text = "31"
 	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
-	#etree.SubElement(iddoc, "IndicadorMontoGravado").text = "1"
+	etree.SubElement(iddoc, "FechaVencimientoSecuencia").text = format_dgii_date(doc.custom_ncf_vencimiento)
 	etree.SubElement(iddoc, "TipoIngresos").text = "01"
 	etree.SubElement(iddoc, "TipoPago").text = "01"
 
@@ -109,61 +134,82 @@ def build_xml_ecf_E32(doc):
 	emisor = etree.SubElement(encabezado, "Emisor")
 	etree.SubElement(emisor, "RNCEmisor").text = doc.company_tax_id
 	etree.SubElement(emisor, "RazonSocialEmisor").text = doc.company
-	#etree.SubElement(emisor, "NombreComercial").text = "TU TIENDA"
-	#etree.SubElement(emisor, "Sucursal").text = "01"
 	etree.SubElement(emisor, "DireccionEmisor").text = doc.company_address_display
-	#etree.SubElement(emisor, "Municipio").text = "020103"
-	#etree.SubElement(emisor, "Provincia").text = "010000"
 	etree.SubElement(emisor, "FechaEmision").text = datetime.datetime.today().strftime("%d-%m-%Y")
 
 	# --- Comprador Section ---
 	comprador = etree.SubElement(encabezado, "Comprador")
-	#etree.SubElement(comprador, "RNCComprador").text = '132758919'
-
-	#etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name
+	etree.SubElement(comprador, "RNCComprador").text = get_comprador_rnc(doc)
+	etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name
 
 	# --- Totales Section ---
 	totales = etree.SubElement(encabezado, "Totales")
-	#etree.SubElement(totales, "MontoGravadoTotal").text = f"{doc.total:.2f}"
-	#etree.SubElement(totales, "MontoExento").text = "0.00"
-	#etree.SubElement(totales, "TotalITBIS").text = f"{doc.total_taxes_and_charges:.2f}"
 	etree.SubElement(totales, "MontoTotal").text = f"{doc.grand_total:.2f}"
 
-	# 3. Build Items Loop (DetallesItems)
+	# --- DetallesItems ---
 	detalles = etree.SubElement(ecf_root, "DetallesItems")
 
 	for idx, item in enumerate(doc.items):
 		item_node = etree.SubElement(detalles, "Item")
-
 		etree.SubElement(item_node, "NumeroLinea").text = str(idx + 1)
-
-		# Nested Table Structure
-		#tabla_codigos = etree.SubElement(item_node, "TablaCodigosItem")
-		#codigos_item = etree.SubElement(tabla_codigos, "CodigosItem")
-		#etree.SubElement(codigos_item, "TipoCodigo").text = "04"
-		#etree.SubElement(codigos_item, "CodigoItem").text = item.item_code
-
-		# SANDWICH ORDER LOGIC (Facturacion -> Nombre -> BienoServicio)
 		etree.SubElement(item_node, "IndicadorFacturacion").text = "1"
 		etree.SubElement(item_node, "NombreItem").text = item.item_name
 		etree.SubElement(item_node, "IndicadorBienoServicio").text = "1"
-
 		etree.SubElement(item_node, "CantidadItem").text = f"{item.qty:.2f}"
 		etree.SubElement(item_node, "PrecioUnitarioItem").text = f"{item.rate:.2f}"
 		etree.SubElement(item_node, "MontoItem").text = f"{item.amount:.2f}"
-		"""
-		# Subtotals Table
-		tabla_sub = etree.SubElement(item_node, "TablaSubtotales")
-		sub_node = etree.SubElement(tabla_sub, "Subtotal")
-		etree.SubElement(sub_node, "MontoSubtotal").text = f"{item.amount:.2f}"
-		"""
-	# 4. Footer & Signature Placeholder
+
+	# --- Footer & Signature ---
 	current_time = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
 	etree.SubElement(ecf_root, "FechaHoraFirma").text = current_time
 
-	# Placeholder for Signature (Required for schema validation before signing)
-	# Note: We don't build the complex signature internals here, just the wrapper
-	# because the Signer class will overwrite/fill this anyway.
-	#sig = etree.SubElement(ecf_root, "Signature")
+	return ecf_root
+
+
+def build_xml_ecf_E32(doc):
+	"""Builds the XML for an E32 (Factura de Consumo Electrónica)."""
+	ns_map = {'xsi': "http://www.w3.org/2001/XMLSchema-instance"}
+	ecf_root = etree.Element("ECF", nsmap=ns_map)
+
+	encabezado = etree.SubElement(ecf_root, "Encabezado")
+	etree.SubElement(encabezado, "Version").text = "1.0"
+
+	# --- IdDoc Section ---
+	iddoc = etree.SubElement(encabezado, "IdDoc")
+	etree.SubElement(iddoc, "TipoeCF").text = "32"
+	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
+	etree.SubElement(iddoc, "TipoIngresos").text = "01"
+	etree.SubElement(iddoc, "TipoPago").text = "01"
+
+	# --- Emisor Section ---
+	emisor = etree.SubElement(encabezado, "Emisor")
+	etree.SubElement(emisor, "RNCEmisor").text = doc.company_tax_id
+	etree.SubElement(emisor, "RazonSocialEmisor").text = doc.company
+	etree.SubElement(emisor, "DireccionEmisor").text = doc.company_address_display
+	etree.SubElement(emisor, "FechaEmision").text = datetime.datetime.today().strftime("%d-%m-%Y")
+
+	# --- Comprador Section ---
+	etree.SubElement(encabezado, "Comprador")
+
+	# --- Totales Section ---
+	totales = etree.SubElement(encabezado, "Totales")
+	etree.SubElement(totales, "MontoTotal").text = f"{doc.grand_total:.2f}"
+
+	# --- DetallesItems ---
+	detalles = etree.SubElement(ecf_root, "DetallesItems")
+
+	for idx, item in enumerate(doc.items):
+		item_node = etree.SubElement(detalles, "Item")
+		etree.SubElement(item_node, "NumeroLinea").text = str(idx + 1)
+		etree.SubElement(item_node, "IndicadorFacturacion").text = "1"
+		etree.SubElement(item_node, "NombreItem").text = item.item_name
+		etree.SubElement(item_node, "IndicadorBienoServicio").text = "1"
+		etree.SubElement(item_node, "CantidadItem").text = f"{item.qty:.2f}"
+		etree.SubElement(item_node, "PrecioUnitarioItem").text = f"{item.rate:.2f}"
+		etree.SubElement(item_node, "MontoItem").text = f"{item.amount:.2f}"
+
+	# --- Footer & Signature ---
+	current_time = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+	etree.SubElement(ecf_root, "FechaHoraFirma").text = current_time
 
 	return ecf_root
