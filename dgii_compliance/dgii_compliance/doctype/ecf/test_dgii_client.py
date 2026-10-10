@@ -74,3 +74,13 @@ class TestDGIIClient(FrappeTestCase):
 		data = dgii_client._parse_response(response)
 		self.assertEqual(data["trackid"], "xyz")
 		self.assertEqual(data["estado"], "Aceptado")
+
+	def test_raise_for_status_includes_dgii_body(self):
+		response = make_response(
+			status_code=400,
+			headers={"Content-Type": "text/plain"},
+			text="Tipo de certificado no admitido",
+		)
+		with self.assertRaises(Exception) as ctx:
+			dgii_client._raise_for_status(response)
+		self.assertIn("Tipo de certificado no admitido", str(ctx.exception))

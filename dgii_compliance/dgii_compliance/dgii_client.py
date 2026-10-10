@@ -74,11 +74,22 @@ def _get_certificate_credentials():
 	return key_pem, cert_pem
 
 
+def _raise_for_status(response):
+	"""Raises a Frappe error that includes DGII's response body, if any."""
+	if response.status_code < 400:
+		return
+	detail = (response.text or "").strip()
+	message = _("DGII respondió con error {0}").format(response.status_code)
+	if detail:
+		message = f"{message}: {detail}"
+	frappe.throw(message)
+
+
 def get_semilla():
 	"""Requests the authentication seed (semilla) from DGII."""
 	url = f"{ECF_BASE_URL}/autenticacion/api/autenticacion/semilla"
 	response = requests.get(url, timeout=REQUEST_TIMEOUT)
-	response.raise_for_status()
+	_raise_for_status(response)
 	return response.content
 
 
@@ -98,7 +109,7 @@ def _request_new_token():
 		files={"xml": ("semilla.xml", signed_semilla, "text/xml")},
 		timeout=REQUEST_TIMEOUT,
 	)
-	response.raise_for_status()
+	_raise_for_status(response)
 
 	data = _parse_response(response)
 	token = data.get("token")
@@ -166,7 +177,7 @@ def send_ecf(xml_content, rnc, encf, token=None):
 		token = get_token(rnc)
 		response = _post_ecf(url, xml_content, filename, token)
 
-	response.raise_for_status()
+	_raise_for_status(response)
 	return _parse_response(response)
 
 
@@ -180,7 +191,7 @@ def query_estado(track_id, rnc):
 		headers={"Authorization": f"bearer {token}"},
 		timeout=REQUEST_TIMEOUT,
 	)
-	response.raise_for_status()
+	_raise_for_status(response)
 	return _parse_response(response)
 
 
