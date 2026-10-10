@@ -1,0 +1,176 @@
+{
+ "actions": [],
+ "creation": "2026-10-10 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "numero_linea",
+  "indicador_facturacion",
+  "indicador_bieno_servicio",
+  "nombre_item",
+  "descripcion_item",
+  "unidad_medida",
+  "cantidad_item",
+  "precio_unitario_item",
+  "monto_item",
+  "descuento_monto",
+  "recargo_monto",
+  "indicador_agente_retencion",
+  "monto_itbis_retenido",
+  "monto_isr_retenido",
+  "fecha_elaboracion",
+  "fecha_vencimiento_item",
+  "cantidad_referencia",
+  "unidad_referencia",
+  "grados_alcohol",
+  "precio_unitario_referencia",
+  "precio_otra_moneda",
+  "monto_item_otra_moneda"
+ ],
+ "fields": [
+  {
+   "fieldname": "numero_linea",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Número de Línea",
+   "reqd": 1
+  },
+  {
+   "fieldname": "indicador_facturacion",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Indicador Facturación",
+   "options": "0\n1\n2\n3\n4"
+  },
+  {
+   "fieldname": "indicador_bieno_servicio",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Indicador Bien o Servicio",
+   "options": "1\n2"
+  },
+  {
+   "fieldname": "nombre_item",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Nombre del Ítem"
+  },
+  {
+   "fieldname": "descripcion_item",
+   "fieldtype": "Small Text",
+   "label": "Descripción del Ítem"
+  },
+  {
+   "fieldname": "unidad_medida",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Unidad de Medida"
+  },
+  {
+   "fieldname": "cantidad_item",
+   "fieldtype": "Float",
+   "label": "Cantidad",
+   "precision": "2"
+  },
+  {
+   "fieldname": "precio_unitario_item",
+   "fieldtype": "Float",
+   "label": "Precio Unitario",
+   "precision": "4"
+  },
+  {
+   "fieldname": "monto_item",
+   "fieldtype": "Float",
+   "label": "Monto Ítem",
+   "precision": "2"
+  },
+  {
+   "fieldname": "descuento_monto",
+   "fieldtype": "Float",
+   "label": "Descuento Monto",
+   "precision": "2"
+  },
+  {
+   "fieldname": "recargo_monto",
+   "fieldtype": "Float",
+   "label": "Recargo Monto",
+   "precision": "2"
+  },
+  {
+   "fieldname": "indicador_agente_retencion",
+   "fieldtype": "Select",
+   "label": "Indicador Agente Ret./Perc.",
+   "options": "1\n2"
+  },
+  {
+   "fieldname": "monto_itbis_retenido",
+   "fieldtype": "Float",
+   "label": "Monto ITBIS Retenido",
+   "precision": "2"
+  },
+  {
+   "fieldname": "monto_isr_retenido",
+   "fieldtype": "Float",
+   "label": "Monto ISR Retenido",
+   "precision": "2"
+  },
+  {
+   "fieldname": "fecha_elaboracion",
+   "fieldtype": "Date",
+   "label": "Fecha Elaboración"
+  },
+  {
+   "fieldname": "fecha_vencimiento_item",
+   "fieldtype": "Date",
+   "label": "Fecha Vencimiento Ítem"
+  },
+  {
+   "fieldname": "cantidad_referencia",
+   "fieldtype": "Float",
+   "label": "Cantidad Referencia",
+   "precision": "2"
+  },
+  {
+   "fieldname": "unidad_referencia",
+   "fieldtype": "Data",
+   "label": "Unidad Referencia"
+  },
+  {
+   "fieldname": "grados_alcohol",
+   "fieldtype": "Float",
+   "label": "Grados Alcohol",
+   "precision": "2"
+  },
+  {
+   "fieldname": "precio_unitario_referencia",
+   "fieldtype": "Float",
+   "label": "Precio Unitario Referencia",
+   "precision": "2"
+  },
+  {
+   "fieldname": "precio_otra_moneda",
+   "fieldtype": "Float",
+   "label": "Precio Otra Moneda",
+   "precision": "4"
+  },
+  {
+   "fieldname": "monto_item_otra_moneda",
+   "fieldtype": "Float",
+   "label": "Monto Ítem Otra Moneda",
+   "precision": "2"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "DGII Compliance",
+ "name": "eCF Detalle Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
