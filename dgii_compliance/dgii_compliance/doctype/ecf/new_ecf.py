@@ -358,11 +358,12 @@ def build_xml_ecf_E32(doc):
 	etree.SubElement(emisor, "FechaEmision").text = datetime.datetime.today().strftime("%d-%m-%Y")
 
 	# --- Comprador Section ---
-	# RNC and name are mandatory for consumption invoices >= RD$250,000
+	# DGII rejects an empty <Comprador>, so RazonSocial is always sent.
+	# RNC is mandatory only for consumption invoices >= RD$250,000.
 	comprador = etree.SubElement(encabezado, "Comprador")
 	if flt(doc.grand_total) >= 250000:
 		etree.SubElement(comprador, "RNCComprador").text = get_comprador_rnc(doc)
-		etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name
+	etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name or "Consumidor Final"
 
 	# --- Totales Section ---
 	append_totales(encabezado, doc, tax_totals)
