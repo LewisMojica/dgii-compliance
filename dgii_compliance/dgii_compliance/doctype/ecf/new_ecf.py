@@ -1,7 +1,9 @@
 import frappe
 from lxml import etree
 from lxml.builder import E
+import base64
 import datetime
+import hashlib
 import json
 from frappe.utils import flt
 from .signer import sign_ecf
@@ -376,3 +378,76 @@ def build_xml_ecf_E32(doc):
 	etree.SubElement(ecf_root, "FechaHoraFirma").text = current_time
 
 	return ecf_root
+
+
+DS_NS = "http://www.w3.org/2000/09/xmldsig#"
+
+
+def compute_security_code(signature_value):
+	"""First 6 characters of the SHA-256 hash of the e-CF SignatureValue.
+
+	Used as ``CodigoSeguridadeCF`` in the RFCE (DGII marks it "sin validación").
+	"""
+	if not signature_value:
+		return None
+	digest = hashlib.sha256(signature_value.encode("utf-8")).digest()
+	return base64.b64encode(digest).decode("ascii")[:6]
+
+
+def build_xml_rfce(signed_ecf_root):
+	"""Builds an RFCE (Resumen Factura de Consumo < RD$250,000) from a signed e-CF.
+
+	DGII does not receive the full e-CF for consumption invoices below
+	RD$250,000; it receives this summary instead, carrying the original e-CF's
+	``CodigoSeguridadeCF``.
+	"""
+	encabezado_src = signed_ecf_root.find("Encabezado")
+
+	ns_map = {'xsi': "http://www.w3.org/2001/XMLSchema-instance"}
+	rfce = etree.Element("RFCE", nsmap=ns_map)
+	encabezado = etree.SubElement(rfce, "Encabezado")
+	etree.SubElement(encabezado, "Version").text = "1.0"
+
+	iddoc = etree.SubElement(encabezado, "IdDoc")
+	src_iddoc = encabezado_src.find("IdDoc")
+	for tag in ("TipoeCF", "eNCF", "TipoIngresos", "TipoPago"):
+		value = src_iddoc.findtext(tag)
+		if value is not None:
+			etree.SubElement(iddoc, tag).text = value
+
+	emisor = etree.SubElement(encabezado, "Emisor")
+	src_emisor = encabezado_src.find("Emisor")
+	for tag in ("RNCEmisor", "RazonSocialEmisor", "FechaEmision"):
+		etree.SubElement(emisor, tag).text = src_emisor.findtext(tag)
+
+	src_comprador = encabezado_src.find("Comprador")
+	if src_comprador is not None and len(src_comprador):
+		comprador = etree.SubElement(encabezado, "Comprador")
+		for tag in ("RNCComprador", "IdentificadorExtranjero", "RazonSocialComprador"):
+			value = src_comprador.findtext(tag)
+			if value:
+				etree.SubElement(comprador, tag).text = value
+
+	totales = etree.SubElement(encabezado, "Totales")
+	src_totales = encabezado_src.find("Totales")
+	for tag in (
+		"MontoGravadoTotal",
+		"MontoGravadoI1",
+		"MontoGravadoI2",
+		"MontoGravadoI3",
+		"MontoExento",
+		"TotalITBIS",
+		"TotalITBIS1",
+		"TotalITBIS2",
+		"TotalITBIS3",
+		"MontoImpuestoAdicional",
+		"MontoTotal",
+	):
+		value = src_totales.findtext(tag)
+		if value is not None:
+			etree.SubElement(totales, tag).text = value
+
+	signature_value = signed_ecf_root.findtext(f".//{{{DS_NS}}}SignatureValue")
+	etree.SubElement(encabezado, "CodigoSeguridadeCF").text = compute_security_code(signature_value)
+
+	return rfce

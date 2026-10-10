@@ -10,6 +10,10 @@ from cryptography.x509.oid import NameOID
 from frappe.tests.utils import FrappeTestCase
 from lxml import etree
 
+from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import (
+	build_xml_rfce,
+	compute_security_code,
+)
 from dgii_compliance.dgii_compliance.doctype.ecf.signer import (
 	check_certificate_validity,
 	sign_xml,
@@ -91,3 +95,39 @@ class TesteCF(FrappeTestCase):
 			self.assertFalse(element.text and not element.text.strip())
 			self.assertFalse(element.tail and not element.tail.strip())
 		self.assertEqual(signed.findtext("Value"), "1")
+
+	def test_compute_security_code_is_six_chars(self):
+		code = compute_security_code("some-signature-value")
+		self.assertEqual(len(code), 6)
+		self.assertEqual(code, compute_security_code("some-signature-value"))
+
+	def test_build_xml_rfce_from_signed_ecf(self):
+		ecf = etree.fromstring(
+			b"<ECF>"
+			b"<Encabezado>"
+			b"<IdDoc><TipoeCF>32</TipoeCF><eNCF>E320000000001</eNCF>"
+			b"<IndicadorMontoGravado>0</IndicadorMontoGravado>"
+			b"<TipoIngresos>01</TipoIngresos><TipoPago>1</TipoPago></IdDoc>"
+			b"<Emisor><RNCEmisor>101010101</RNCEmisor>"
+			b"<RazonSocialEmisor>Emisora</RazonSocialEmisor>"
+			b"<FechaEmision>10-10-2026</FechaEmision></Emisor>"
+			b"<Comprador><RazonSocialComprador>Consumidor Final</RazonSocialComprador></Comprador>"
+			b"<Totales><MontoGravadoTotal>1000.00</MontoGravadoTotal>"
+			b"<TotalITBIS>180.00</TotalITBIS><MontoTotal>1180.00</MontoTotal></Totales>"
+			b"</Encabezado>"
+			b'<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">'
+			b"<ds:SignatureValue>ABC123==</ds:SignatureValue></ds:Signature>"
+			b"</ECF>"
+		)
+
+		rfce = build_xml_rfce(ecf)
+
+		self.assertEqual(rfce.tag, "RFCE")
+		self.assertEqual(rfce.findtext("Encabezado/IdDoc/TipoeCF"), "32")
+		self.assertEqual(rfce.findtext("Encabezado/IdDoc/TipoPago"), "1")
+		self.assertIsNone(rfce.find("Encabezado/IdDoc/IndicadorMontoGravado"))
+		self.assertEqual(rfce.findtext("Encabezado/Totales/MontoTotal"), "1180.00")
+		self.assertEqual(
+			rfce.findtext("Encabezado/CodigoSeguridadeCF"),
+			compute_security_code("ABC123=="),
+		)
