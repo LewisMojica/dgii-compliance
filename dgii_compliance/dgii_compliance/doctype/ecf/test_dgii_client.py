@@ -84,3 +84,23 @@ class TestDGIIClient(FrappeTestCase):
 		with self.assertRaises(Exception) as ctx:
 			dgii_client._raise_for_status(response)
 		self.assertIn("Tipo de certificado no admitido", str(ctx.exception))
+
+	def test_query_estado_uses_consultaresultado_endpoint(self):
+		response = make_response(json_data={"trackId": "t", "estado": "Aceptado", "fechaRecepcion": "2026-10-10T15:24:53Z"})
+		with patch.object(dgii_client.requests, "get", return_value=response) as mock_get, \
+				patch.object(dgii_client, "get_token", return_value="tok"):
+			result = dgii_client.query_estado("t1", "1")
+
+		url = mock_get.call_args[0][0]
+		self.assertIn("/consultaresultado/api/consultas/estado", url)
+		self.assertEqual(mock_get.call_args[1]["params"], {"trackid": "t1"})
+		self.assertEqual(result["estado"], "Aceptado")
+		self.assertEqual(result["fecharecepcion"], "2026-10-10T15:24:53Z")
+
+	def test_collect_mensaje_combines_singular_and_plural(self):
+		self.assertEqual(dgii_client._collect_mensaje({"error": "E1", "mensaje": "M1"}), "E1\nM1")
+		self.assertEqual(
+			dgii_client._collect_mensaje({"mensajes": [{"codigo": 1, "valor": "V"}]}),
+			"1: V",
+		)
+		self.assertIsNone(dgii_client._collect_mensaje({}))

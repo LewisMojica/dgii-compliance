@@ -184,7 +184,7 @@ def send_ecf(xml_content, rnc, encf, token=None):
 def query_estado(track_id, rnc):
 	"""Queries the validation status of a previously submitted e-CF."""
 	token = get_token(rnc)
-	url = f"{ECF_BASE_URL}/consultas/api/consultas/estado"
+	url = f"{ECF_BASE_URL}/consultaresultado/api/consultas/estado"
 	response = requests.get(
 		url,
 		params={"trackid": track_id},
@@ -222,6 +222,23 @@ def _format_mensajes(mensajes):
 	return "\n".join(parts)
 
 
+def _collect_mensaje(result):
+	"""Builds a message from a DGII response.
+
+	Reception returns singular ``error``/``mensaje``; the status query returns
+	a ``mensajes`` list. Both are combined here.
+	"""
+	parts = []
+	for key in ("error", "mensaje"):
+		value = result.get(key)
+		if value:
+			parts.append(str(value).strip())
+	formatted = _format_mensajes(result.get("mensajes"))
+	if formatted:
+		parts.append(formatted)
+	return "\n".join(part for part in parts if part) or None
+
+
 @frappe.whitelist()
 def send_ecf_to_dgii(ecf_name):
 	"""Sends the stored signed e-CF and records DGII's response."""
@@ -237,7 +254,7 @@ def send_ecf_to_dgii(ecf_name):
 
 	doc.track_id = result.get("trackid")
 	doc.estado = result.get("estado")
-	doc.mensaje = _format_mensajes(result.get("mensajes"))
+	doc.mensaje = _collect_mensaje(result)
 	doc.sent_at = now_datetime()
 	doc.status = map_estado_to_status(doc.estado) if doc.estado else "sent"
 	doc.save(ignore_permissions=True)
@@ -247,4 +264,35 @@ def send_ecf_to_dgii(ecf_name):
 		"estado": doc.estado,
 		"track_id": doc.track_id,
 		"mensaje": doc.mensaje,
+	}
+
+
+@frappe.whitelist()
+def refresh_ecf_status(ecf_name):
+	"""Fetches the validation status of a sent e-CF from DGII."""
+	doc = frappe.get_doc("eCF", ecf_name)
+	if not doc.track_id:
+		frappe.throw(_("El e-CF no tiene Track ID. Envíelo a DGII primero."))
+
+	rnc, _ = _extract_rnc_and_encf(doc.xml)
+	if not rnc:
+		frappe.throw(_("No se pudo obtener el RNC del XML."))
+
+	result = query_estado(doc.track_id, rnc)
+
+	doc.estado = result.get("estado")
+	doc.mensaje = _collect_mensaje(result)
+	fecha_recepcion = result.get("fecharecepcion")
+	if fecha_recepcion:
+		doc.fecha_recepcion = get_datetime(fecha_recepcion)
+	if doc.estado:
+		doc.status = map_estado_to_status(doc.estado)
+	doc.save(ignore_permissions=True)
+
+	return {
+		"status": doc.status,
+		"estado": doc.estado,
+		"track_id": doc.track_id,
+		"mensaje": doc.mensaje,
+		"fecha_recepcion": doc.fecha_recepcion,
 	}
