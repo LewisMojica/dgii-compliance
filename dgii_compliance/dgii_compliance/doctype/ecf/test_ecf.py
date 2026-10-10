@@ -78,3 +78,16 @@ class TesteCF(FrappeTestCase):
 		signed = sign_xml(root, key_pem, bagged_cert)
 
 		self.assertIsNotNone(signed.find("ds:Signature", DS))
+
+	def test_sign_xml_strips_insignificant_whitespace(self):
+		key_pem, cert_pem = generate_key_and_cert()
+		root = etree.fromstring(b"<ECF>\n  <Value>1</Value>\n  <Other>2</Other>\n</ECF>")
+
+		signed = sign_xml(root, key_pem, cert_pem)
+
+		for element in signed.iter():
+			if not isinstance(element.tag, str):
+				continue
+			self.assertFalse(element.text and not element.text.strip())
+			self.assertFalse(element.tail and not element.tail.strip())
+		self.assertEqual(signed.findtext("Value"), "1")

@@ -42,8 +42,26 @@ def normalize_cert_pem(cert_pem):
 	return load_pem_x509_certificate(cert_pem).public_bytes(serialization.Encoding.PEM)
 
 
+def strip_insignificant_whitespace(xml_root):
+	"""Removes whitespace-only text/tail nodes from the tree.
+
+	DGII's signature validation ignores insignificant whitespace, so the
+	signed digest must be computed over the whitespace-stripped document.
+	Otherwise DGII rejects the signature.
+	"""
+	for element in xml_root.iter():
+		if not isinstance(element.tag, str):
+			continue
+		if element.text is not None and not element.text.strip():
+			element.text = None
+		if element.tail is not None and not element.tail.strip():
+			element.tail = None
+	return xml_root
+
+
 def sign_xml(xml_root, key_pem, cert_pem):
 	"""Signs an XML tree and verifies the resulting signature."""
+	strip_insignificant_whitespace(xml_root)
 	signed_xml_root = build_signer().sign(xml_root, key=key_pem, cert=cert_pem)
 	XMLVerifier().verify(signed_xml_root, x509_cert=normalize_cert_pem(cert_pem))
 	return signed_xml_root
