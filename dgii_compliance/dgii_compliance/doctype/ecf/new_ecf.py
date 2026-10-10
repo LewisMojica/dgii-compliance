@@ -303,7 +303,7 @@ def build_xml_ecf_E31(doc):
 		# 1 when line amounts already include ITBIS, 0 when it is added on top
 		etree.SubElement(iddoc, "IndicadorMontoGravado").text = "1" if tax_totals["itbis_incluido"] else "0"
 	etree.SubElement(iddoc, "TipoIngresos").text = "01"
-	etree.SubElement(iddoc, "TipoPago").text = "01"
+	etree.SubElement(iddoc, "TipoPago").text = "1"
 
 	# --- Emisor Section ---
 	emisor = etree.SubElement(encabezado, "Emisor")
@@ -348,7 +348,7 @@ def build_xml_ecf_E32(doc):
 		# 1 when line amounts already include ITBIS, 0 when it is added on top
 		etree.SubElement(iddoc, "IndicadorMontoGravado").text = "1" if tax_totals["itbis_incluido"] else "0"
 	etree.SubElement(iddoc, "TipoIngresos").text = "01"
-	etree.SubElement(iddoc, "TipoPago").text = "01"
+	etree.SubElement(iddoc, "TipoPago").text = "1"
 
 	# --- Emisor Section ---
 	emisor = etree.SubElement(encabezado, "Emisor")
