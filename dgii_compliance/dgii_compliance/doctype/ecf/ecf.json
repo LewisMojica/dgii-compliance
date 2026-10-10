@@ -10,6 +10,7 @@
   "track_id",
   "estado",
   "sent_at",
+  "fecha_recepcion",
   "mensaje",
   "xml"
  ],
@@ -64,6 +65,13 @@
    "read_only": 1
   },
   {
+   "fieldname": "fecha_recepcion",
+   "fieldtype": "Datetime",
+   "label": "DGII Fecha Recepción",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "mensaje",
    "fieldtype": "Long Text",
    "label": "DGII Mensaje",
@@ -73,6 +81,7 @@
   {
    "fieldname": "xml",
    "fieldtype": "Long Text",
+   "ignore_xss_filter": 1,
    "label": "XML"
   }
  ],
