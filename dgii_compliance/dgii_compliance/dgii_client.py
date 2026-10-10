@@ -9,11 +9,13 @@ Environment is hardcoded for now; switch ``DGII_ENVIRONMENT`` to move between
 import requests
 import frappe
 from frappe import _
-from frappe.utils import get_datetime, now_datetime
+from frappe.utils import flt, get_datetime, now_datetime
 from lxml import etree
 
+from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import build_xml_rfce
 from dgii_compliance.dgii_compliance.doctype.ecf.signer import (
 	get_dgii_file_path,
+	sign_ecf,
 	sign_xml,
 )
 
@@ -181,6 +183,30 @@ def send_ecf(xml_content, rnc, encf, token=None):
 	return _parse_response(response)
 
 
+def send_rfce(xml_content, rnc, encf, token=None):
+	"""Sends a signed RFCE (Resumen Factura de Consumo < RD$250k) to DGII.
+
+	Retries once with a fresh token if DGII rejects the session (401).
+	"""
+	if isinstance(xml_content, str):
+		xml_content = xml_content.encode()
+
+	if token is None:
+		token = get_token(rnc)
+
+	url = f"{FC_BASE_URL}/recepcionfc/api/recepcion/ecf"
+	filename = f"{rnc}{encf}.xml"
+
+	response = _post_ecf(url, xml_content, filename, token)
+	if response.status_code == 401:
+		_clear_token(rnc)
+		token = get_token(rnc)
+		response = _post_ecf(url, xml_content, filename, token)
+
+	_raise_for_status(response)
+	return _parse_response(response)
+
+
 def query_estado(track_id, rnc):
 	"""Queries the validation status of a previously submitted e-CF."""
 	token = get_token(rnc)
@@ -250,7 +276,18 @@ def send_ecf_to_dgii(ecf_name):
 	if not rnc or not encf:
 		frappe.throw(_("No se pudo obtener el RNC o el e-NCF del XML."))
 
-	result = send_ecf(doc.xml, rnc, encf)
+	root = etree.fromstring(doc.xml.encode() if isinstance(doc.xml, str) else doc.xml)
+	tipo_ecf = root.findtext("Encabezado/IdDoc/TipoeCF")
+	monto_total = flt(root.findtext("Encabezado/Totales/MontoTotal"))
+
+	if tipo_ecf == "32" and monto_total < 250000:
+		# Consumption invoices below RD$250,000 go as an RFCE (Resumen B2C).
+		rfce_body = etree.tostring(
+			sign_ecf(build_xml_rfce(root)), xml_declaration=True, encoding="utf-8"
+		)
+		result = send_rfce(rfce_body, rnc, encf)
+	else:
+		result = send_ecf(doc.xml, rnc, encf)
 
 	doc.track_id = result.get("trackid")
 	doc.estado = result.get("estado")

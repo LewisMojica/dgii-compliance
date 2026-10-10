@@ -104,3 +104,14 @@ class TestDGIIClient(FrappeTestCase):
 			"1: V",
 		)
 		self.assertIsNone(dgii_client._collect_mensaje({}))
+
+	def test_send_rfce_uses_fc_endpoint(self):
+		response = make_response(json_data={"codigo": 1, "estado": "Aceptado", "mensajes": []})
+		with patch.object(dgii_client.requests, "post", return_value=response) as mock_post:
+			result = dgii_client.send_rfce("<RFCE/>", "101010101", "E320000000001", token="tok")
+
+		url = mock_post.call_args[0][0]
+		self.assertIn("fc.dgii.gov.do", url)
+		self.assertIn("/recepcionfc/api/recepcion/ecf", url)
+		self.assertEqual(mock_post.call_args[1]["files"]["xml"][0], "101010101E320000000001.xml")
+		self.assertEqual(result["estado"], "Aceptado")
