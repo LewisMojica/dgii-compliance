@@ -1,6 +1,20 @@
 import frappe
 from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import new_ecf
 
+# e-NCF sequence prefixes: E + <type> + 10-digit sequence
+ECF_SEQUENCE_PREFIX = {
+	'E31': 310000000000,
+	'E32': 320000000000,
+	'E33': 330000000000,
+	'E34': 340000000000,
+	'E41': 410000000000,
+	'E43': 430000000000,
+	'E44': 440000000000,
+	'E45': 450000000000,
+	'E46': 460000000000,
+	'E47': 470000000000,
+}
+
 
 def main(doc,method):
 	"""
@@ -26,7 +40,7 @@ def main(doc,method):
 	if doc.custom_factura_de_valor_fiscal:
 
 		invoicing_method = frappe.get_single('DGII Compliance Settings').invoicing_method
-		ncf_type = get_ncf_type(frappe.get_doc('Customer',doc.customer), invoicing_method)
+		ncf_type = doc.get('custom_ecf_type') or get_ncf_type(frappe.get_doc('Customer',doc.customer), invoicing_method)
 		ncf_seq_list = frappe.get_all('Secuencia NCF', filters = {'disabled': 0, 'ncf_type': ncf_type})
 
 		#error check
@@ -63,10 +77,8 @@ def main(doc,method):
 			formated_ncf = 1400000000
 		elif ncf_type == 'B15':
 			formated_ncf = 1500000000
-		elif ncf_type == 'E31':
-			formated_ncf = 310000000000
-		elif ncf_type == 'E32':
-			formated_ncf = 320000000000
+		elif ncf_type in ECF_SEQUENCE_PREFIX:
+			formated_ncf = ECF_SEQUENCE_PREFIX[ncf_type]
 		else:
 			frappe.throw(f'NCF {ncf_type} no es válido')
 
