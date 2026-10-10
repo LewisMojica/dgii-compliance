@@ -2,6 +2,7 @@
 # See license.txt
 
 import datetime
+import json
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -11,8 +12,13 @@ from frappe.tests.utils import FrappeTestCase
 from lxml import etree
 
 from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import (
+	build_xml_ecf_E43,
+	build_xml_ecf_E44,
+	build_xml_ecf_E45,
+	build_xml_ecf_E46,
 	build_xml_rfce,
 	compute_security_code,
+	validate_xml_schema,
 )
 from dgii_compliance.dgii_compliance.doctype.ecf.signer import (
 	check_certificate_validity,
@@ -131,3 +137,77 @@ class TesteCF(FrappeTestCase):
 			rfce.findtext("Encabezado/CodigoSeguridadeCF"),
 			compute_security_code("ABC123=="),
 		)
+
+
+class _Item:
+	def __init__(self, **kw):
+		self.__dict__.update(kw)
+
+
+class _Doc:
+	def __init__(self, **kw):
+		self.__dict__.update(kw)
+
+	def get(self, key, default=None):
+		return self.__dict__.get(key, default)
+
+
+def _itbis_tax(rate, amount):
+	return _Doc(
+		description=f"ITBIS {rate}%",
+		account_head=f"ITBIS {rate}% - ESC",
+		rate=rate,
+		included_in_print_rate=0,
+		item_wise_tax_detail=json.dumps({"ITEM": [float(rate), float(amount)]}),
+	)
+
+
+def _base_doc(taxes=None, amount=1000.0, grand_total=1000.0):
+	return _Doc(
+		custom_ncf="E320000000001",
+		custom_ncf_vencimiento="2026-12-31",
+		tax_id="131313131",
+		customer="C1",
+		customer_name="Cliente",
+		company_tax_id="101010101",
+		company="Emisora",
+		company_address_display="Calle 1",
+		grand_total=grand_total,
+		taxes=taxes or [],
+		doctype="Sales Invoice",
+		name="SINV-1",
+		items=[_Item(item_code="ITEM", item_name="Item", qty=1, rate=amount, amount=amount)],
+	)
+
+
+class TestTier1Builders(FrappeTestCase):
+	def _validate(self, xml, ecf_type):
+		etree.SubElement(xml, "{http://www.w3.org/2000/09/xmldsig#}Signature")
+		self.assertTrue(validate_xml_schema(xml, ecf_type), f"{ecf_type} XML should be valid")
+
+	def test_e43_exento_no_comprador(self):
+		xml = build_xml_ecf_E43(_base_doc())
+		self.assertIsNone(xml.find("Encabezado/Comprador"))
+		self.assertIsNone(xml.find("Encabezado/IdDoc/TipoIngresos"))
+		self.assertEqual(xml.findtext("DetallesItems/Item/IndicadorFacturacion"), "4")
+		self.assertEqual(xml.findtext("Encabezado/Totales/MontoExento"), "1000.00")
+		self._validate(xml, "E43")
+
+	def test_e44_exento_with_comprador(self):
+		xml = build_xml_ecf_E44(_base_doc())
+		self.assertIsNotNone(xml.find("Encabezado/Comprador/RazonSocialComprador"))
+		self.assertEqual(xml.findtext("DetallesItems/Item/IndicadorFacturacion"), "4")
+		self._validate(xml, "E44")
+
+	def test_e45_gravado(self):
+		xml = build_xml_ecf_E45(_base_doc(taxes=[_itbis_tax(18, 180.0)], grand_total=1180.0))
+		self.assertEqual(xml.findtext("Encabezado/IdDoc/TipoeCF"), "45")
+		self.assertEqual(xml.findtext("Encabezado/Totales/TotalITBIS1"), "180.00")
+		self.assertEqual(xml.findtext("Encabezado/Comprador/RNCComprador"), "131313131")
+		self._validate(xml, "E45")
+
+	def test_e46_tasa_cero(self):
+		xml = build_xml_ecf_E46(_base_doc())
+		self.assertEqual(xml.findtext("DetallesItems/Item/IndicadorFacturacion"), "3")
+		self.assertEqual(xml.findtext("Encabezado/Totales/ITBIS3"), "0")
+		self._validate(xml, "E46")

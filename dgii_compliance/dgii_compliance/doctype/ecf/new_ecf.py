@@ -17,6 +17,10 @@ def validate_xml_schema(xml_object, eNCF_type, raise_on_error=False):
 	xsd_name_map = {
 		'E31': 'e-CF 31 v.1.0.xsd',
 		'E32': 'e-CF 32 v.1.0.xsd',
+		'E43': 'e-CF 43 v.1.0.xsd',
+		'E44': 'e-CF 44 v.1.0.xsd',
+		'E45': 'e-CF 45 v.1.0.xsd',
+		'E46': 'e-CF 46 v.1.0.xsd',
 	}
 	xsd_path = frappe.get_app_path('dgii_compliance', 'dgii_compliance') + '/xsd/' + xsd_name_map[eNCF_type]
 	with open(xsd_path, 'rb') as xsd_file:
@@ -47,12 +51,17 @@ def new_ecf(doc, eNCF_type):
 	current_time = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
 	today_date = datetime.datetime.now().strftime("%d-%m-%Y")
 
-	if eNCF_type == 'E31':
-		xml_object = build_xml_ecf_E31(doc)
-	elif eNCF_type == 'E32':
-		xml_object = build_xml_ecf_E32(doc)
-	else:
+	builders = {
+		'E31': build_xml_ecf_E31,
+		'E32': build_xml_ecf_E32,
+		'E43': build_xml_ecf_E43,
+		'E44': build_xml_ecf_E44,
+		'E45': build_xml_ecf_E45,
+		'E46': build_xml_ecf_E46,
+	}
+	if eNCF_type not in builders:
 		frappe.throw(f'No existe un generador XML para el tipo de eNCF {eNCF_type}')
+	xml_object = builders[eNCF_type](doc)
 
 	"""
 	if not validate_xml_schema(xml_object, eNCF_type):
@@ -171,13 +180,20 @@ def item_is_bien(item):
 		return True
 
 
-def compute_dgii_tax_totals(doc):
+def compute_dgii_tax_totals(doc, forced_indicador=None):
 	"""Builds the DGII tax buckets and totals from the invoice taxes.
+
+	Some e-CF types force a single IndicadorFacturacion on every line regardless
+	of the invoice taxes (E43/E44/E47 = 4 "Exento", E46 = 3 "tasa cero"); pass
+	``forced_indicador`` for those.
 
 	Returns a dict with per-line indicators, the taxable base per ITBIS rate,
 	the ITBIS amount per rate and the header totals.
 	"""
-	rates, has_detail, default_rate = get_item_itbis_rates(doc)
+	if forced_indicador:
+		rates, has_detail, default_rate = {}, False, None
+	else:
+		rates, has_detail, default_rate = get_item_itbis_rates(doc)
 
 	itbis_incluido = any(
 		tax.get("included_in_print_rate") for tax in (doc.get("taxes") or []) if is_itbis_tax(tax)
@@ -187,7 +203,7 @@ def compute_dgii_tax_totals(doc):
 	buckets = {"1": 0.0, "2": 0.0, "3": 0.0, "4": 0.0}
 	line_indicators = []
 	for item in doc.items:
-		indicador = get_indicador_facturacion(item, rates, has_detail, default_rate)
+		indicador = forced_indicador or get_indicador_facturacion(item, rates, has_detail, default_rate)
 		line_indicators.append(indicador)
 		buckets[indicador] += flt(item.amount)
 
@@ -239,7 +255,7 @@ def append_totales(encabezado, doc, tax_totals):
 		etree.SubElement(totales, "ITBIS2").text = "16"
 	if buckets["3"]:
 		etree.SubElement(totales, "ITBIS3").text = "0"
-	if tax_totals["total_itbis_sum"]:
+	if tax_totals["monto_gravado_total"] or tax_totals["total_itbis_sum"]:
 		etree.SubElement(totales, "TotalITBIS").text = f"{tax_totals['total_itbis_sum']:.2f}"
 	if buckets["1"]:
 		etree.SubElement(totales, "TotalITBIS1").text = f"{total_itbis['1']:.2f}"
@@ -371,6 +387,133 @@ def build_xml_ecf_E32(doc):
 	current_time = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
 	etree.SubElement(ecf_root, "FechaHoraFirma").text = current_time
 
+	return ecf_root
+
+
+def _append_emisor(encabezado, doc):
+	emisor = etree.SubElement(encabezado, "Emisor")
+	etree.SubElement(emisor, "RNCEmisor").text = doc.company_tax_id
+	etree.SubElement(emisor, "RazonSocialEmisor").text = doc.company
+	etree.SubElement(emisor, "DireccionEmisor").text = doc.company_address_display
+	etree.SubElement(emisor, "FechaEmision").text = datetime.datetime.today().strftime("%d-%m-%Y")
+
+
+def _append_firma(ecf_root):
+	current_time = datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+	etree.SubElement(ecf_root, "FechaHoraFirma").text = current_time
+
+
+def build_xml_ecf_E43(doc):
+	"""E43 Gastos Menores: every line Exento, no Comprador, no TipoIngresos."""
+	tax_totals = compute_dgii_tax_totals(doc, forced_indicador="4")
+
+	ecf_root = etree.Element("ECF", nsmap={'xsi': "http://www.w3.org/2001/XMLSchema-instance"})
+	encabezado = etree.SubElement(ecf_root, "Encabezado")
+	etree.SubElement(encabezado, "Version").text = "1.0"
+
+	iddoc = etree.SubElement(encabezado, "IdDoc")
+	etree.SubElement(iddoc, "TipoeCF").text = "43"
+	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
+	etree.SubElement(iddoc, "FechaVencimientoSecuencia").text = format_dgii_date(doc.custom_ncf_vencimiento)
+	etree.SubElement(iddoc, "TipoPago").text = "1"
+
+	_append_emisor(encabezado, doc)
+	append_totales(encabezado, doc, tax_totals)
+	append_detalles_items(ecf_root, doc, tax_totals)
+	_append_firma(ecf_root)
+	return ecf_root
+
+
+def build_xml_ecf_E44(doc):
+	"""E44 Regímenes Especiales: every line Exento; RazonSocialComprador required."""
+	tax_totals = compute_dgii_tax_totals(doc, forced_indicador="4")
+
+	ecf_root = etree.Element("ECF", nsmap={'xsi': "http://www.w3.org/2001/XMLSchema-instance"})
+	encabezado = etree.SubElement(ecf_root, "Encabezado")
+	etree.SubElement(encabezado, "Version").text = "1.0"
+
+	iddoc = etree.SubElement(encabezado, "IdDoc")
+	etree.SubElement(iddoc, "TipoeCF").text = "44"
+	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
+	etree.SubElement(iddoc, "FechaVencimientoSecuencia").text = format_dgii_date(doc.custom_ncf_vencimiento)
+	etree.SubElement(iddoc, "TipoIngresos").text = "01"
+	etree.SubElement(iddoc, "TipoPago").text = "1"
+
+	_append_emisor(encabezado, doc)
+
+	comprador = etree.SubElement(encabezado, "Comprador")
+	comprador_rnc = get_comprador_rnc(doc)
+	if comprador_rnc:
+		etree.SubElement(comprador, "RNCComprador").text = comprador_rnc
+	etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name or "Consumidor Final"
+
+	append_totales(encabezado, doc, tax_totals)
+	append_detalles_items(ecf_root, doc, tax_totals)
+	_append_firma(ecf_root)
+	return ecf_root
+
+
+def build_xml_ecf_E45(doc):
+	"""E45 Gubernamental: like E31 (gravado; RNCComprador + RazonSocial required)."""
+	tax_totals = compute_dgii_tax_totals(doc)
+
+	ecf_root = etree.Element("ECF", nsmap={'xsi': "http://www.w3.org/2001/XMLSchema-instance"})
+	encabezado = etree.SubElement(ecf_root, "Encabezado")
+	etree.SubElement(encabezado, "Version").text = "1.0"
+
+	iddoc = etree.SubElement(encabezado, "IdDoc")
+	etree.SubElement(iddoc, "TipoeCF").text = "45"
+	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
+	etree.SubElement(iddoc, "FechaVencimientoSecuencia").text = format_dgii_date(doc.custom_ncf_vencimiento)
+	if tax_totals["monto_gravado_total"] > 0:
+		etree.SubElement(iddoc, "IndicadorMontoGravado").text = "1" if tax_totals["itbis_incluido"] else "0"
+	etree.SubElement(iddoc, "TipoIngresos").text = "01"
+	etree.SubElement(iddoc, "TipoPago").text = "1"
+
+	_append_emisor(encabezado, doc)
+
+	comprador_rnc = get_comprador_rnc(doc)
+	if not comprador_rnc:
+		frappe.throw(
+			"El RNC del comprador es requerido para el Comprobante Gubernamental "
+			"Electrónico (E45). Verifique el RNC del cliente."
+		)
+	comprador = etree.SubElement(encabezado, "Comprador")
+	etree.SubElement(comprador, "RNCComprador").text = comprador_rnc
+	etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name
+
+	append_totales(encabezado, doc, tax_totals)
+	append_detalles_items(ecf_root, doc, tax_totals)
+	_append_firma(ecf_root)
+	return ecf_root
+
+
+def build_xml_ecf_E46(doc):
+	"""E46 Exportaciones: every line ITBIS tasa cero; RazonSocialComprador required."""
+	tax_totals = compute_dgii_tax_totals(doc, forced_indicador="3")
+
+	ecf_root = etree.Element("ECF", nsmap={'xsi': "http://www.w3.org/2001/XMLSchema-instance"})
+	encabezado = etree.SubElement(ecf_root, "Encabezado")
+	etree.SubElement(encabezado, "Version").text = "1.0"
+
+	iddoc = etree.SubElement(encabezado, "IdDoc")
+	etree.SubElement(iddoc, "TipoeCF").text = "46"
+	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
+	etree.SubElement(iddoc, "FechaVencimientoSecuencia").text = format_dgii_date(doc.custom_ncf_vencimiento)
+	etree.SubElement(iddoc, "TipoIngresos").text = "01"
+	etree.SubElement(iddoc, "TipoPago").text = "1"
+
+	_append_emisor(encabezado, doc)
+
+	comprador = etree.SubElement(encabezado, "Comprador")
+	comprador_rnc = get_comprador_rnc(doc)
+	if comprador_rnc:
+		etree.SubElement(comprador, "RNCComprador").text = comprador_rnc
+	etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name or "Consumidor Final"
+
+	append_totales(encabezado, doc, tax_totals)
+	append_detalles_items(ecf_root, doc, tax_totals)
+	_append_firma(ecf_root)
 	return ecf_root
 
 
