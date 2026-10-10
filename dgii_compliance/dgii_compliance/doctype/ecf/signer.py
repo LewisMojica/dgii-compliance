@@ -2,6 +2,7 @@ import datetime
 
 import frappe
 from signxml import XMLSigner, XMLVerifier, methods
+from cryptography.hazmat.primitives import serialization
 from cryptography.x509 import load_pem_x509_certificate
 
 
@@ -31,10 +32,20 @@ def build_signer():
 	)
 
 
+def normalize_cert_pem(cert_pem):
+	"""Returns a clean single-certificate PEM.
+
+	Files produced by ``openssl pkcs12`` include leading "Bag Attributes",
+	which signxml's verifier cannot parse. cryptography handles them fine, so
+	we reload and re-serialize the leaf certificate.
+	"""
+	return load_pem_x509_certificate(cert_pem).public_bytes(serialization.Encoding.PEM)
+
+
 def sign_xml(xml_root, key_pem, cert_pem):
 	"""Signs an XML tree and verifies the resulting signature."""
 	signed_xml_root = build_signer().sign(xml_root, key=key_pem, cert=cert_pem)
-	XMLVerifier().verify(signed_xml_root, x509_cert=cert_pem)
+	XMLVerifier().verify(signed_xml_root, x509_cert=normalize_cert_pem(cert_pem))
 	return signed_xml_root
 
 

@@ -69,3 +69,12 @@ class TesteCF(FrappeTestCase):
 	def test_expired_certificate_is_rejected(self):
 		_, cert_pem = generate_key_and_cert(valid_from_days=-10, valid_to_days=-1)
 		self.assertRaises(Exception, check_certificate_validity, cert_pem)
+
+	def test_sign_xml_accepts_openssl_bag_attributes(self):
+		key_pem, cert_pem = generate_key_and_cert()
+		bagged_cert = b"Bag Attributes\n    localKeyID: 01\ntrusted: No\n" + cert_pem
+		root = etree.fromstring(b"<ECF><Value>1</Value></ECF>")
+
+		signed = sign_xml(root, key_pem, bagged_cert)
+
+		self.assertIsNotNone(signed.find("ds:Signature", DS))
