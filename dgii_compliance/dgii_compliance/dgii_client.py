@@ -257,17 +257,28 @@ def _extract_rnc_and_encf(xml_content):
 
 
 def _format_mensajes(mensajes):
+	"""Formats DGII ``mensajes`` entries, ignoring codes without text.
+
+	DGII returns entries like ``{"codigo": 0, "valor": ""}`` for successes;
+	those carry no information and should not be shown as a message.
+	"""
 	if not mensajes:
 		return None
 	if isinstance(mensajes, str):
-		return mensajes
+		return mensajes.strip() or None
 	parts = []
 	for message in mensajes:
 		if isinstance(message, dict):
-			parts.append(f"{message.get('codigo', '')}: {message.get('valor', '')}".strip(": "))
+			valor = str(message.get("valor") or "").strip()
+			if not valor:
+				continue
+			codigo = message.get("codigo")
+			parts.append(f"{codigo}: {valor}" if codigo not in (None, "", 0, "0") else valor)
 		else:
-			parts.append(str(message))
-	return "\n".join(parts)
+			text = str(message).strip()
+			if text:
+				parts.append(text)
+	return "\n".join(parts) or None
 
 
 def _collect_mensaje(result):

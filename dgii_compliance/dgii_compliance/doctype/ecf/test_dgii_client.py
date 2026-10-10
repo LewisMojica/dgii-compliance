@@ -104,6 +104,8 @@ class TestDGIIClient(FrappeTestCase):
 			"1: V",
 		)
 		self.assertIsNone(dgii_client._collect_mensaje({}))
+		# success entries carry a code but no text
+		self.assertIsNone(dgii_client._collect_mensaje({"mensajes": [{"codigo": 0, "valor": ""}]}))
 
 	def test_query_rfce_estado_uses_consultarfce(self):
 		response = make_response(json_data={"estado": "Aceptado", "codigo": "1"})
