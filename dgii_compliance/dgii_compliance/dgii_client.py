@@ -12,7 +12,11 @@ from frappe import _
 from frappe.utils import flt, get_datetime, now_datetime
 from lxml import etree
 
-from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import build_xml_rfce
+from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import (
+	DS_NS,
+	build_xml_rfce,
+	compute_security_code,
+)
 from dgii_compliance.dgii_compliance.doctype.ecf.signer import (
 	get_dgii_file_path,
 	sign_ecf,
@@ -221,6 +225,24 @@ def query_estado(track_id, rnc):
 	return _parse_response(response)
 
 
+def query_rfce_estado(rnc, encf, codigo_seguridad):
+	"""Queries the status of a previously submitted RFCE (Resumen < RD$250k)."""
+	token = get_token(rnc)
+	url = f"{FC_BASE_URL}/consultarfce/api/Consultas/Consulta"
+	response = requests.get(
+		url,
+		params={
+			"RNC_Emisor": rnc,
+			"ENCF": encf,
+			"Cod_Seguridad_eCF": codigo_seguridad,
+		},
+		headers={"Authorization": f"bearer {token}"},
+		timeout=REQUEST_TIMEOUT,
+	)
+	_raise_for_status(response)
+	return _parse_response(response)
+
+
 def map_estado_to_status(estado):
 	if not estado:
 		return "sent"
@@ -308,14 +330,21 @@ def send_ecf_to_dgii(ecf_name):
 def refresh_ecf_status(ecf_name):
 	"""Fetches the validation status of a sent e-CF from DGII."""
 	doc = frappe.get_doc("eCF", ecf_name)
-	if not doc.track_id:
-		frappe.throw(_("El e-CF no tiene Track ID. Envíelo a DGII primero."))
+	if not doc.xml:
+		frappe.throw(_("El e-CF no tiene XML para consultar."))
 
-	rnc, _ = _extract_rnc_and_encf(doc.xml)
+	rnc, encf = _extract_rnc_and_encf(doc.xml)
 	if not rnc:
 		frappe.throw(_("No se pudo obtener el RNC del XML."))
 
-	result = query_estado(doc.track_id, rnc)
+	if doc.track_id:
+		# Full e-CF submitted through the reception service
+		result = query_estado(doc.track_id, rnc)
+	else:
+		# RFCE (Resumen < RD$250k) submitted through the FC service
+		root = etree.fromstring(doc.xml.encode() if isinstance(doc.xml, str) else doc.xml)
+		signature_value = root.findtext(f".//{{{DS_NS}}}SignatureValue")
+		result = query_rfce_estado(rnc, encf, compute_security_code(signature_value))
 
 	doc.estado = result.get("estado")
 	doc.mensaje = _collect_mensaje(result)

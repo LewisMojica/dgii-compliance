@@ -105,6 +105,19 @@ class TestDGIIClient(FrappeTestCase):
 		)
 		self.assertIsNone(dgii_client._collect_mensaje({}))
 
+	def test_query_rfce_estado_uses_consultarfce(self):
+		response = make_response(json_data={"estado": "Aceptado", "codigo": "1"})
+		with patch.object(dgii_client.requests, "get", return_value=response) as mock_get, \
+				patch.object(dgii_client, "get_token", return_value="tok"):
+			result = dgii_client.query_rfce_estado("101010101", "E320000000001", "ABC123")
+
+		self.assertIn("/consultarfce/api/Consultas/Consulta", mock_get.call_args[0][0])
+		self.assertEqual(
+			mock_get.call_args[1]["params"],
+			{"RNC_Emisor": "101010101", "ENCF": "E320000000001", "Cod_Seguridad_eCF": "ABC123"},
+		)
+		self.assertEqual(result["estado"], "Aceptado")
+
 	def test_send_rfce_uses_fc_endpoint(self):
 		response = make_response(json_data={"codigo": 1, "estado": "Aceptado", "mensajes": []})
 		with patch.object(dgii_client.requests, "post", return_value=response) as mock_post:
