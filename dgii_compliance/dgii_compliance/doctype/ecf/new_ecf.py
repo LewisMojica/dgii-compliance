@@ -2,6 +2,8 @@ import frappe
 from lxml import etree
 from lxml.builder import E
 import datetime
+import json
+from frappe.utils import flt
 from .signer import sign_ecf
 
 def validate_xml_schema(xml_object, eNCF_type):
@@ -166,8 +168,100 @@ def build_xml_ecf_E31(doc):
 	return ecf_root
 
 
+# IndicadorFacturacion codes: 1=ITBIS 18%, 2=ITBIS 16%, 3=ITBIS 0%, 4=Exento
+INDICADOR_FACTURACION_BY_RATE = {18: "1", 16: "2", 0: "3"}
+ITBIS_RATE_BY_INDICADOR = {"1": 18.0, "2": 16.0, "3": 0.0}
+
+
+def is_itbis_tax(tax):
+	"""True when a Sales Taxes and Charges row represents ITBIS."""
+	label = f"{tax.get('description') or ''} {tax.get('account_head') or ''}"
+	return "ITBIS" in label.upper()
+
+
+def get_item_itbis_rates(doc):
+	"""Resolves the ITBIS rate applied to each invoice line.
+
+	ERPNext stores per-item tax detail (``item_wise_tax_detail``) on each Sales
+	Taxes and Charges row. Items absent from that detail are exempt.
+
+	Returns:
+		tuple: (rates_by_item, has_detail, default_rate)
+	"""
+	rates = {}
+	has_detail = False
+	default_rate = None
+	for tax in doc.get("taxes") or []:
+		if not is_itbis_tax(tax):
+			continue
+		default_rate = flt(tax.get("rate"))
+		detail = tax.get("item_wise_tax_detail")
+		if not detail:
+			continue
+		try:
+			detail = json.loads(detail)
+		except (TypeError, ValueError):
+			continue
+		has_detail = True
+		for key, value in detail.items():
+			rates[key] = flt(value[0] if isinstance(value, (list, tuple)) else value)
+	return rates, has_detail, default_rate
+
+
+def get_indicador_facturacion(item, rates, has_detail, default_rate):
+	"""Returns the DGII IndicadorFacturacion code for an invoice line."""
+	if has_detail:
+		rate = rates.get(item.item_code or item.item_name)
+	else:
+		rate = default_rate
+	if rate is None:
+		return "4"
+	return INDICADOR_FACTURACION_BY_RATE.get(int(rate), "1")
+
+
+def item_is_bien(item):
+	"""Maps an item to Bien (1) or Servicio (2) using Item.is_stock_item."""
+	if not item.item_code:
+		return True
+	try:
+		return bool(frappe.get_cached_value("Item", item.item_code, "is_stock_item"))
+	except Exception:
+		return True
+
+
 def build_xml_ecf_E32(doc):
 	"""Builds the XML for an E32 (Factura de Consumo Electrónica)."""
+	rates, has_detail, default_rate = get_item_itbis_rates(doc)
+
+	itbis_incluido = any(
+		tax.get("included_in_print_rate") for tax in (doc.get("taxes") or []) if is_itbis_tax(tax)
+	)
+
+	# Bucket every line by its IndicadorFacturacion so header totals reconcile
+	buckets = {"1": 0.0, "2": 0.0, "3": 0.0, "4": 0.0}
+	line_indicators = []
+	for item in doc.items:
+		indicador = get_indicador_facturacion(item, rates, has_detail, default_rate)
+		line_indicators.append(indicador)
+		buckets[indicador] += flt(item.amount)
+
+	# When line amounts already include ITBIS, the taxable base is the line total
+	# divided by (1 + rate) per the DGII format specification.
+	monto_gravado = {}
+	for code, rate in ITBIS_RATE_BY_INDICADOR.items():
+		base = buckets[code]
+		if itbis_incluido and rate:
+			base = base / (1 + rate / 100.0)
+		monto_gravado[code] = round(base, 2)
+
+	total_itbis = {
+		code: round(monto_gravado[code] * ITBIS_RATE_BY_INDICADOR[code] / 100.0, 2)
+		for code in ITBIS_RATE_BY_INDICADOR
+	}
+	monto_gravado_total = round(sum(monto_gravado.values()), 2)
+	total_itbis_sum = round(sum(total_itbis.values()), 2)
+	tiene_gravado = monto_gravado_total > 0
+
 	ns_map = {'xsi': "http://www.w3.org/2001/XMLSchema-instance"}
 	ecf_root = etree.Element("ECF", nsmap=ns_map)
 
@@ -178,6 +272,9 @@ def build_xml_ecf_E32(doc):
 	iddoc = etree.SubElement(encabezado, "IdDoc")
 	etree.SubElement(iddoc, "TipoeCF").text = "32"
 	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
+	if tiene_gravado:
+		# 1 when line amounts already include ITBIS, 0 when it is added on top
+		etree.SubElement(iddoc, "IndicadorMontoGravado").text = "1" if itbis_incluido else "0"
 	etree.SubElement(iddoc, "TipoIngresos").text = "01"
 	etree.SubElement(iddoc, "TipoPago").text = "01"
 
@@ -189,10 +286,38 @@ def build_xml_ecf_E32(doc):
 	etree.SubElement(emisor, "FechaEmision").text = datetime.datetime.today().strftime("%d-%m-%Y")
 
 	# --- Comprador Section ---
-	etree.SubElement(encabezado, "Comprador")
+	# RNC and name are mandatory for consumption invoices >= RD$250,000
+	comprador = etree.SubElement(encabezado, "Comprador")
+	if flt(doc.grand_total) >= 250000:
+		etree.SubElement(comprador, "RNCComprador").text = get_comprador_rnc(doc)
+		etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name
 
 	# --- Totales Section ---
 	totales = etree.SubElement(encabezado, "Totales")
+	if tiene_gravado:
+		etree.SubElement(totales, "MontoGravadoTotal").text = f"{monto_gravado_total:.2f}"
+	if buckets["1"]:
+		etree.SubElement(totales, "MontoGravadoI1").text = f"{monto_gravado['1']:.2f}"
+	if buckets["2"]:
+		etree.SubElement(totales, "MontoGravadoI2").text = f"{monto_gravado['2']:.2f}"
+	if buckets["3"]:
+		etree.SubElement(totales, "MontoGravadoI3").text = f"{monto_gravado['3']:.2f}"
+	if buckets["4"]:
+		etree.SubElement(totales, "MontoExento").text = f"{buckets['4']:.2f}"
+	if buckets["1"]:
+		etree.SubElement(totales, "ITBIS1").text = "18"
+	if buckets["2"]:
+		etree.SubElement(totales, "ITBIS2").text = "16"
+	if buckets["3"]:
+		etree.SubElement(totales, "ITBIS3").text = "0"
+	if total_itbis_sum:
+		etree.SubElement(totales, "TotalITBIS").text = f"{total_itbis_sum:.2f}"
+	if buckets["1"]:
+		etree.SubElement(totales, "TotalITBIS1").text = f"{total_itbis['1']:.2f}"
+	if buckets["2"]:
+		etree.SubElement(totales, "TotalITBIS2").text = f"{total_itbis['2']:.2f}"
+	if buckets["3"]:
+		etree.SubElement(totales, "TotalITBIS3").text = f"{total_itbis['3']:.2f}"
 	etree.SubElement(totales, "MontoTotal").text = f"{doc.grand_total:.2f}"
 
 	# --- DetallesItems ---
@@ -201,9 +326,9 @@ def build_xml_ecf_E32(doc):
 	for idx, item in enumerate(doc.items):
 		item_node = etree.SubElement(detalles, "Item")
 		etree.SubElement(item_node, "NumeroLinea").text = str(idx + 1)
-		etree.SubElement(item_node, "IndicadorFacturacion").text = "1"
+		etree.SubElement(item_node, "IndicadorFacturacion").text = line_indicators[idx]
 		etree.SubElement(item_node, "NombreItem").text = item.item_name
-		etree.SubElement(item_node, "IndicadorBienoServicio").text = "1"
+		etree.SubElement(item_node, "IndicadorBienoServicio").text = "1" if item_is_bien(item) else "2"
 		etree.SubElement(item_node, "CantidadItem").text = f"{item.qty:.2f}"
 		etree.SubElement(item_node, "PrecioUnitarioItem").text = f"{item.rate:.2f}"
 		etree.SubElement(item_node, "MontoItem").text = f"{item.amount:.2f}"
