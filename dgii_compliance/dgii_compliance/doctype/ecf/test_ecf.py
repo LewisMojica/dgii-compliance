@@ -1,9 +1,71 @@
 # Copyright (c) 2025, Lewis Mojica and Contributors
 # See license.txt
 
-# import frappe
+import datetime
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from frappe.tests.utils import FrappeTestCase
+from lxml import etree
+
+from dgii_compliance.dgii_compliance.doctype.ecf.signer import (
+	check_certificate_validity,
+	sign_xml,
+)
+
+DS = {"ds": "http://www.w3.org/2000/09/xmldsig#"}
+
+
+def generate_key_and_cert(valid_from_days=-1, valid_to_days=365):
+	"""Generates a throwaway RSA key and self-signed certificate for tests."""
+	key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+	name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "DGII Test")])
+	now = datetime.datetime.now(datetime.timezone.utc)
+	cert = (
+		x509.CertificateBuilder()
+		.subject_name(name)
+		.issuer_name(name)
+		.public_key(key.public_key())
+		.serial_number(x509.random_serial_number())
+		.not_valid_before(now + datetime.timedelta(days=valid_from_days))
+		.not_valid_after(now + datetime.timedelta(days=valid_to_days))
+		.sign(key, hashes.SHA256())
+	)
+	key_pem = key.private_bytes(
+		serialization.Encoding.PEM,
+		serialization.PrivateFormat.PKCS8,
+		serialization.NoEncryption(),
+	)
+	return key_pem, cert.public_bytes(serialization.Encoding.PEM)
 
 
 class TesteCF(FrappeTestCase):
-	pass
+	def test_signature_structure_matches_dgii_spec(self):
+		key_pem, cert_pem = generate_key_and_cert()
+		root = etree.fromstring(b"<ECF><Value>1</Value></ECF>")
+
+		signed = sign_xml(root, key_pem, cert_pem)  # verifies the signature internally
+
+		sig = signed.find("ds:Signature", DS)
+		self.assertIsNotNone(sig)
+		self.assertEqual(
+			sig.find("ds:SignedInfo/ds:SignatureMethod", DS).get("Algorithm"),
+			"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+		)
+		self.assertEqual(
+			sig.find("ds:SignedInfo/ds:Reference/ds:DigestMethod", DS).get("Algorithm"),
+			"http://www.w3.org/2001/04/xmlenc#sha256",
+		)
+		self.assertEqual(
+			sig.find("ds:SignedInfo/ds:CanonicalizationMethod", DS).get("Algorithm"),
+			"http://www.w3.org/TR/2001/REC-xml-c14n-20010315",
+		)
+		self.assertEqual(sig.find("ds:SignedInfo/ds:Reference", DS).get("URI"), "")
+		self.assertIsNotNone(sig.find("ds:KeyInfo/ds:X509Data/ds:X509Certificate", DS))
+		self.assertIsNone(sig.find("ds:KeyInfo/ds:KeyValue", DS))
+
+	def test_expired_certificate_is_rejected(self):
+		_, cert_pem = generate_key_and_cert(valid_from_days=-10, valid_to_days=-1)
+		self.assertRaises(Exception, check_certificate_validity, cert_pem)

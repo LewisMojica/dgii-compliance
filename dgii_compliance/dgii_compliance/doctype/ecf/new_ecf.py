@@ -74,13 +74,12 @@ def new_ecf(doc, eNCF_type):
 		print(validate_xml_schema(xml_object, eNCF_type))
 		frappe.throw('XML Schema validation failed')
 	"""
-	xml_string = etree.tostring(xml_object)
-
 	signed_xml_object = sign_ecf(xml_object)
 
 	if not validate_xml_schema(signed_xml_object, eNCF_type):
 		frappe.throw('XML Schema validation failed after sign')
 
+	xml_string = etree.tostring(signed_xml_object)
 
 	ecf = frappe.get_doc({
 		'doctype': 'eCF',
