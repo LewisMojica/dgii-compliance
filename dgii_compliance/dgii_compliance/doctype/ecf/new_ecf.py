@@ -8,44 +8,27 @@ import json
 from frappe.utils import flt
 from .signer import sign_ecf
 
-def validate_xml_schema(xml_object, eNCF_type):
-	"""
-	Validates an XML document against an XSD schema.
+def validate_xml_schema(xml_object, eNCF_type, raise_on_error=False):
+	"""Validates an XML document against the e-CF XSD for its type.
 
-	Args:
-		xml_object (lxml.etree.Element): The XML object to validate.
-		eNCF_type (str): The type of eNCF to validate against.
-
-	Returns:
-		bool: True if the XML is valid, False otherwise.
+	Returns True when valid. When invalid, returns False, or raises with the
+	schema errors if ``raise_on_error`` is set.
 	"""
 	xsd_name_map = {
 		'E31': 'e-CF 31 v.1.0.xsd',
 		'E32': 'e-CF 32 v.1.0.xsd',
 	}
 	xsd_path = frappe.get_app_path('dgii_compliance', 'dgii_compliance') + '/xsd/' + xsd_name_map[eNCF_type]
-	print(xsd_path)
-	try:
-		with open(xsd_path, 'rb') as xsd_file:
-			xsd_content = xsd_file.read()
-		# Parse the XML and XSD
-		xsd_object = etree.fromstring(xsd_content)
+	with open(xsd_path, 'rb') as xsd_file:
+		schema = etree.XMLSchema(etree.fromstring(xsd_file.read()))
 
-		# Create an XML Schema object
-		schema = etree.XMLSchema(xsd_object)
-		print('schema valid')
-		# Validate the XML document
-		if schema.validate(xml_object):
-			return True
+	if schema.validate(xml_object):
+		return True
 
-		error_msgs = []
-		for error in schema.error_log:
-			err_msg = f"Line {error.line}: {error.message} (Domain: {error.domain_name})"
-			print(err_msg)
-		return False
-	except etree.ParseError as e:
-		print(f"XML Parse Error: {str(e)}")
-		return False
+	errors = " | ".join(f"Línea {e.line}: {e.message}" for e in schema.error_log) or "desconocido"
+	if raise_on_error:
+		frappe.throw(f"El XML del e-CF {eNCF_type} no cumple el esquema: {errors}")
+	return False
 
 def new_ecf(doc, eNCF_type):
 	"""
@@ -78,8 +61,7 @@ def new_ecf(doc, eNCF_type):
 	"""
 	signed_xml_object = sign_ecf(xml_object)
 
-	if not validate_xml_schema(signed_xml_object, eNCF_type):
-		frappe.throw('XML Schema validation failed after sign')
+	validate_xml_schema(signed_xml_object, eNCF_type, raise_on_error=True)
 
 	xml_string = etree.tostring(
 		signed_xml_object, encoding="utf-8", xml_declaration=True
@@ -315,8 +297,14 @@ def build_xml_ecf_E31(doc):
 	etree.SubElement(emisor, "FechaEmision").text = datetime.datetime.today().strftime("%d-%m-%Y")
 
 	# --- Comprador Section ---
+	comprador_rnc = get_comprador_rnc(doc)
+	if not comprador_rnc:
+		frappe.throw(
+			"El RNC del comprador es requerido para la Factura de Crédito "
+			"Fiscal Electrónica (E31). Verifique el RNC del cliente."
+		)
 	comprador = etree.SubElement(encabezado, "Comprador")
-	etree.SubElement(comprador, "RNCComprador").text = get_comprador_rnc(doc)
+	etree.SubElement(comprador, "RNCComprador").text = comprador_rnc
 	etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name
 
 	# --- Totales Section ---
@@ -364,7 +352,13 @@ def build_xml_ecf_E32(doc):
 	# RNC is mandatory only for consumption invoices >= RD$250,000.
 	comprador = etree.SubElement(encabezado, "Comprador")
 	if flt(doc.grand_total) >= 250000:
-		etree.SubElement(comprador, "RNCComprador").text = get_comprador_rnc(doc)
+		comprador_rnc = get_comprador_rnc(doc)
+		if not comprador_rnc:
+			frappe.throw(
+				"Para Facturas de Consumo Electrónicas de RD$250,000 o más se "
+				"requiere el RNC del comprador. Verifique el RNC del cliente."
+			)
+		etree.SubElement(comprador, "RNCComprador").text = comprador_rnc
 	etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name or "Consumidor Final"
 
 	# --- Totales Section ---
