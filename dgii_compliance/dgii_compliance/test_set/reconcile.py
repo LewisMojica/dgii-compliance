@@ -81,7 +81,8 @@ def reconcile_case(case, invoice_name):
 
 def _norm_group_value(fieldname, value):
 	if fieldname in importer._FLOAT_CHILD:
-		return f"{flt(value or 0):.2f}"
+		amount = flt(value or 0)
+		return f"{amount:.2f}" if amount else ""
 	return str(value or "").strip()
 
 

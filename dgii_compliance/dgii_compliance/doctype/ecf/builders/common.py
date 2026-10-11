@@ -226,3 +226,121 @@ def append_firma(ecf_root):
 
 
 NSMAP = {"xsi": "http://www.w3.org/2001/XMLSchema-instance"}
+
+
+# --- Value accessors (centralized so storage can change in one place) ---
+
+
+def opt(doc, fieldname):
+	"""Returns a stripped value, or ``None`` when empty (covers Select '' too)."""
+	value = doc.get(fieldname)
+	if isinstance(value, str):
+		value = value.strip()
+	return value or None
+
+
+def num(doc, fieldname):
+	"""Returns a float, or ``None`` when empty or zero (numeric 0 == absent)."""
+	value = flt(doc.get(fieldname))
+	return value or None
+
+
+def intval(doc, fieldname):
+	value = doc.get(fieldname)
+	if value in (None, ""):
+		return None
+	return int(flt(value))
+
+
+def should_use(doc, fieldname, fallback=None):
+	"""Override if present; otherwise the fallback (unless certification).
+
+	Certification invoices must not invent values, so when the override is empty
+	the element is omitted rather than derived.
+	"""
+	value = opt(doc, fieldname)
+	if value is not None:
+		return value
+	return None if is_certification(doc) else fallback
+
+
+def is_certification(doc):
+	"""True for invoices created from the DGII certification test set.
+
+	Certification invoices carry every value as an override, so builders must
+	not fall back to derived/production values (which may emit elements the
+	workbook omits).
+	"""
+	return bool(doc.get("custom_ecf_certification"))
+
+
+def item_rows(doc):
+	"""Maps ``numero_linea`` -> eCF Detalle Item row."""
+	return {row.numero_linea: row for row in (doc.get("custom_ecf_detalle_items") or [])}
+
+
+# --- Emission helpers (skip absent values so #e stays omitted) ---
+
+
+def add(parent, tag, value):
+	if value in (None, ""):
+		return None
+	element = etree.SubElement(parent, tag)
+	element.text = str(value)
+	return element
+
+
+def add_amount(parent, tag, value):
+	if value in (None, ""):
+		return None
+	amount = flt(value)
+	if not amount:
+		return None
+	element = etree.SubElement(parent, tag)
+	element.text = f"{amount:.2f}"
+	return element
+
+
+def add_amount_force(parent, tag, value, decimals=2):
+	"""Emits a numeric element even when it is zero (e.g. mandatory ITBIS3=0)."""
+	element = etree.SubElement(parent, tag)
+	element.text = f"{flt(value):.{decimals}f}"
+	return element
+
+
+def add_int(parent, tag, value):
+	if value in (None, ""):
+		return None
+	element = etree.SubElement(parent, tag)
+	element.text = str(int(flt(value)))
+	return element
+
+
+def add_date(parent, tag, value):
+	if not value:
+		return None
+	element = etree.SubElement(parent, tag)
+	element.text = format_dgii_date(value)
+	return element
+
+
+def add_container(parent, tag, children):
+	"""Appends ``tag`` only when at least one child value is present.
+
+	``children`` is a list of ``(child_tag, value, kind)`` with kind in
+	``text | amount | date | int``.
+	"""
+	values = [(child_tag, value, kind) for child_tag, value, kind in children if value not in (None, "")]
+	if not values:
+		return None
+	container = etree.SubElement(parent, tag)
+	for child_tag, value, kind in values:
+		if kind == "amount":
+			add_amount(container, child_tag, value)
+		elif kind == "date":
+			add_date(container, child_tag, value)
+		elif kind == "int":
+			add_int(container, child_tag, value)
+		else:
+			add(container, child_tag, value)
+	return container
