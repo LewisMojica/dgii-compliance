@@ -276,10 +276,32 @@ def build_invoice(case, company):
 	return doc
 
 
+def _ever_sent(ecf):
+	"""True when an e-CF has been sent to DGII (cannot be safely deleted)."""
+	return bool(ecf.get("track_id") or ecf.get("sent_at") or (ecf.get("status") and ecf.get("status") != "pending"))
+
+
 def reset_case(encf):
-	"""Deletes any invoice/e-CF previously created for ``encf``."""
+	"""Deletes any invoice/e-CF previously created for ``encf``.
+
+	Refuses to reset a case whose e-CF was ever sent to DGII: deleting it would
+	lose the local ledger (track_id/estado) while DGII keeps the sequence
+	consumed.
+	"""
 	names = frappe.get_all("Sales Invoice", filters={"custom_ncf": encf}, pluck="name")
 	if names:
+		linked = frappe.get_all(
+			"eCF",
+			filters={"ref_doctype": "Sales Invoice", "ref_name": ["in", names]},
+			fields=["name", "status", "track_id", "sent_at"],
+		)
+		sent = [ecf for ecf in linked if _ever_sent(ecf)]
+		if sent:
+			frappe.throw(
+				f"El e-CF de {encf} ya fue enviado a DGII (estado: "
+				f"{sent[0].get('status') or 'desconocido'}). No se reinicia para no "
+				"perder el registro local."
+			)
 		frappe.db.delete("eCF", {"ref_doctype": "Sales Invoice", "ref_name": ["in", names]})
 		for name in names:
 			doc = frappe.get_doc("Sales Invoice", name)

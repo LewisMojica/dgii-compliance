@@ -309,6 +309,39 @@ def _collect_mensaje(result):
 	return "\n".join(part for part in parts if part) or None
 
 
+REFERENCE_OK_STATUS = ("accepted", "accepted_conditional")
+
+
+def _guard_reference(root):
+	"""Blocks a note whose referenced e-CF has not been accepted by DGII.
+
+	DGII requires the modified e-NCF (``InformacionReferencia/NCFModificado``) to
+	have been previously remitted and accepted; otherwise it rejects the note.
+	"""
+	ncf = root.findtext(".//InformacionReferencia/NCFModificado")
+	if not ncf:
+		return
+	ref_invoice = frappe.db.get_value("Sales Invoice", {"custom_ncf": ncf}, "name")
+	if not ref_invoice:
+		frappe.throw(
+			_("La factura de referencia {0} no existe localmente; envíela y acéptela antes.").format(ncf)
+		)
+	ref_ecf = frappe.db.get_value(
+		"eCF",
+		{"ref_doctype": "Sales Invoice", "ref_name": ref_invoice},
+		["name", "status"],
+		as_dict=True,
+	)
+	if not ref_ecf or ref_ecf.status not in REFERENCE_OK_STATUS:
+		estado = ref_ecf.status if ref_ecf else _("no enviada")
+		frappe.throw(
+			_(
+				"La factura de referencia {0} no está aceptada en DGII (estado: {1}). "
+				"Envíe y acepte la referencia antes de enviar esta nota."
+			).format(ncf, estado)
+		)
+
+
 @frappe.whitelist()
 def send_ecf_to_dgii(ecf_name):
 	"""Sends the stored signed e-CF and records DGII's response."""
@@ -321,6 +354,7 @@ def send_ecf_to_dgii(ecf_name):
 		frappe.throw(_("No se pudo obtener el RNC o el e-NCF del XML."))
 
 	root = etree.fromstring(doc.xml.encode() if isinstance(doc.xml, str) else doc.xml)
+	_guard_reference(root)
 	tipo_ecf = root.findtext("Encabezado/IdDoc/TipoeCF")
 	monto_total = flt(root.findtext("Encabezado/Totales/MontoTotal"))
 

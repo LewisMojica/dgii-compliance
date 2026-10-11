@@ -130,3 +130,19 @@ class TestDGIIClient(FrappeTestCase):
 		self.assertIn("/recepcionfc/api/recepcion/ecf", url)
 		self.assertEqual(mock_post.call_args[1]["files"]["xml"][0], "101010101E320000000001.xml")
 		self.assertEqual(result["estado"], "Aceptado")
+
+	def test_guard_reference_noop_without_reference(self):
+		from lxml import etree
+
+		dgii_client._guard_reference(etree.fromstring(b"<ECF><Encabezado/></ECF>"))
+
+	def test_guard_reference_blocks_missing_reference(self):
+		from lxml import etree
+
+		root = etree.fromstring(
+			b"<ECF><Encabezado/><InformacionReferencia>"
+			b"<NCFModificado>E999999999999999</NCFModificado>"
+			b"</InformacionReferencia></ECF>"
+		)
+		with self.assertRaises(Exception):
+			dgii_client._guard_reference(root)

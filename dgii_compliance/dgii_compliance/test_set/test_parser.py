@@ -111,6 +111,16 @@ class TestParser(unittest.TestCase):
 		self.assertEqual(summary["total"], 1)
 		self.assertEqual(summary["by_type"], {"E31": 1})
 
+	def test_ever_sent(self):
+		from dgii_compliance.dgii_compliance.test_set import importer
+
+		self.assertFalse(importer._ever_sent({"status": "pending"}))
+		self.assertFalse(importer._ever_sent({}))
+		self.assertTrue(importer._ever_sent({"status": "accepted"}))
+		self.assertTrue(importer._ever_sent({"status": "rejected"}))
+		self.assertTrue(importer._ever_sent({"status": "pending", "track_id": "t"}))
+		self.assertTrue(importer._ever_sent({"status": None, "sent_at": "2026-10-10"}))
+
 
 class TestMappingTargets(FrappeTestCase):
 	def test_header_targets_exist(self):
