@@ -55,7 +55,8 @@ def _header(mismatches, case, xml, encabezado):
 		if fieldname == "skip":
 			continue
 		tag = _xml_tag(column)
-		actual = encabezado.findtext(f".//{tag}")
+		# InformacionReferencia lives outside Encabezado, so search the whole doc.
+		actual = xml.findtext(f".//{tag}")
 		expected = case["header"].get(column)
 		if expected is None:
 			_check_absent(mismatches, tag, actual)

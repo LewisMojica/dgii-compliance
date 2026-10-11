@@ -39,10 +39,14 @@ def validate_xml_schema(xml_object, eNCF_type, raise_on_error=False):
 	xsd_name_map = {
 		"E31": "e-CF 31 v.1.0.xsd",
 		"E32": "e-CF 32 v.1.0.xsd",
+		"E33": "e-CF 33 v.1.0.xsd",
+		"E34": "e-CF 34 v.1.0.xsd",
+		"E41": "e-CF 41 v.1.0.xsd",
 		"E43": "e-CF 43 v.1.0.xsd",
 		"E44": "e-CF 44 v.1.0.xsd",
 		"E45": "e-CF 45 v.1.0.xsd",
 		"E46": "e-CF 46 v.1.0.xsd",
+		"E47": "e-CF 47 v.1.0.xsd",
 	}
 	xsd_path = frappe.get_app_path("dgii_compliance", "dgii_compliance") + "/xsd/" + xsd_name_map[eNCF_type]
 	with open(xsd_path, "rb") as xsd_file:

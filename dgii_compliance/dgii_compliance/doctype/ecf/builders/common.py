@@ -549,7 +549,8 @@ def emit_totales(parent, doc, present, tax_totals, cert):
 		if code in present:
 			add_amount_force(totales, tag, num(doc, f"custom_ecf_total_itbis{code}") or 0)
 	add_amount(totales, "MontoImpuestoAdicional", num(doc, "custom_ecf_monto_impuesto_adicional"))
-	add_amount_force(totales, "MontoTotal", num(doc, "custom_ecf_monto_total") or doc.grand_total)
+	# Certification always carries an explicit MontoTotal (even 0.00).
+	add_amount_force(totales, "MontoTotal", flt(doc.get("custom_ecf_monto_total")))
 	add_amount(totales, "MontoNoFacturable", num(doc, "custom_ecf_monto_no_facturable"))
 	add_amount(totales, "MontoPeriodo", num(doc, "custom_ecf_monto_periodo"))
 	add_amount(totales, "SaldoAnterior", num(doc, "custom_ecf_saldo_anterior"))
