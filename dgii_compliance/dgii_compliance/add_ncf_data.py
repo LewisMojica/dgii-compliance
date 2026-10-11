@@ -39,6 +39,15 @@ def main(doc,method):
 
 	if doc.custom_factura_de_valor_fiscal:
 
+		if doc.get('custom_ecf_certification'):
+			# Certification invoices carry the e-NCF supplied by the DGII test
+			# set: do not consume a sequence, just generate the e-CF.
+			ncf_type = doc.get('custom_ecf_type')
+			if not doc.custom_ncf or not ncf_type:
+				frappe.throw('La factura de certificación requiere e-NCF y tipo e-CF.')
+			new_ecf(doc, ncf_type)
+			return
+
 		invoicing_method = frappe.get_single('DGII Compliance Settings').invoicing_method
 		ncf_type = doc.get('custom_ecf_type') or get_ncf_type(frappe.get_doc('Customer',doc.customer), invoicing_method)
 		ncf_seq_list = frappe.get_all('Secuencia NCF', filters = {'disabled': 0, 'ncf_type': ncf_type})

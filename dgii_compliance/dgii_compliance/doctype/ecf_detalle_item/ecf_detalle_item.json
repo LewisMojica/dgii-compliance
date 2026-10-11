@@ -41,14 +41,14 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Indicador Facturación",
-   "options": "0\n1\n2\n3\n4"
+   "options": "\n0\n1\n2\n3\n4"
   },
   {
    "fieldname": "indicador_bieno_servicio",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Indicador Bien o Servicio",
-   "options": "1\n2"
+   "options": "\n1\n2"
   },
   {
    "fieldname": "nombre_item",
@@ -101,7 +101,7 @@
    "fieldname": "indicador_agente_retencion",
    "fieldtype": "Select",
    "label": "Indicador Agente Ret./Perc.",
-   "options": "1\n2"
+   "options": "\n1\n2"
   },
   {
    "fieldname": "monto_itbis_retenido",
