@@ -1,8 +1,8 @@
 """Outbound client for DGII electronic invoicing services.
 
 Handles authentication (semilla -> token), e-CF reception and status queries.
-Environment is hardcoded for now; switch ``DGII_ENVIRONMENT`` to move between
-``testecf`` (pre-certification), ``certecf`` (certification) and ``ecf``
+The environment is configured in DGII Compliance Settings (``dgii_environment``):
+``testecf`` (pre-certification), ``certecf`` (certification) or ``ecf``
 (production).
 """
 
@@ -23,10 +23,21 @@ from dgii_compliance.dgii_compliance.doctype.ecf.signer import (
 	sign_xml,
 )
 
-DGII_ENVIRONMENT = "testecf"
+DEFAULT_ENVIRONMENT = "testecf"
 
-ECF_BASE_URL = f"https://ecf.dgii.gov.do/{DGII_ENVIRONMENT}"
-FC_BASE_URL = f"https://fc.dgii.gov.do/{DGII_ENVIRONMENT}"
+
+def get_environment():
+	"""Returns the active DGII environment from DGII Compliance Settings."""
+	return frappe.db.get_single_value("DGII Compliance Settings", "dgii_environment") or DEFAULT_ENVIRONMENT
+
+
+def ecf_base_url():
+	return f"https://ecf.dgii.gov.do/{get_environment()}"
+
+
+def fc_base_url():
+	return f"https://fc.dgii.gov.do/{get_environment()}"
+
 
 TOKEN_CACHE_PREFIX = "dgii:token"
 TOKEN_SAFETY_MARGIN_SECONDS = 300
@@ -93,7 +104,7 @@ def _raise_for_status(response):
 
 def get_semilla():
 	"""Requests the authentication seed (semilla) from DGII."""
-	url = f"{ECF_BASE_URL}/autenticacion/api/autenticacion/semilla"
+	url = f"{ecf_base_url()}/autenticacion/api/autenticacion/semilla"
 	response = requests.get(url, timeout=REQUEST_TIMEOUT)
 	_raise_for_status(response)
 	return response.content
@@ -109,7 +120,7 @@ def _sign_semilla(semilla_xml):
 def _request_new_token():
 	"""Fetches and signs a semilla, then exchanges it for a fresh token."""
 	signed_semilla = _sign_semilla(get_semilla())
-	url = f"{ECF_BASE_URL}/autenticacion/api/autenticacion/validarsemilla"
+	url = f"{ecf_base_url()}/autenticacion/api/autenticacion/validarsemilla"
 	response = requests.post(
 		url,
 		files={"xml": ("semilla.xml", signed_semilla, "text/xml")},
@@ -135,7 +146,7 @@ def _token_ttl(expira):
 
 
 def _token_cache_key(rnc):
-	return f"{TOKEN_CACHE_PREFIX}:{DGII_ENVIRONMENT}:{rnc}"
+	return f"{TOKEN_CACHE_PREFIX}:{get_environment()}:{rnc}"
 
 
 def get_token(rnc):
@@ -174,7 +185,7 @@ def send_ecf(xml_content, rnc, encf, token=None):
 	if token is None:
 		token = get_token(rnc)
 
-	url = f"{ECF_BASE_URL}/recepcion/api/facturaselectronicas"
+	url = f"{ecf_base_url()}/recepcion/api/facturaselectronicas"
 	filename = f"{rnc}{encf}.xml"
 
 	response = _post_ecf(url, xml_content, filename, token)
@@ -198,7 +209,7 @@ def send_rfce(xml_content, rnc, encf, token=None):
 	if token is None:
 		token = get_token(rnc)
 
-	url = f"{FC_BASE_URL}/recepcionfc/api/recepcion/ecf"
+	url = f"{fc_base_url()}/recepcionfc/api/recepcion/ecf"
 	filename = f"{rnc}{encf}.xml"
 
 	response = _post_ecf(url, xml_content, filename, token)
@@ -214,7 +225,7 @@ def send_rfce(xml_content, rnc, encf, token=None):
 def query_estado(track_id, rnc):
 	"""Queries the validation status of a previously submitted e-CF."""
 	token = get_token(rnc)
-	url = f"{ECF_BASE_URL}/consultaresultado/api/consultas/estado"
+	url = f"{ecf_base_url()}/consultaresultado/api/consultas/estado"
 	response = requests.get(
 		url,
 		params={"trackid": track_id},
@@ -228,7 +239,7 @@ def query_estado(track_id, rnc):
 def query_rfce_estado(rnc, encf, codigo_seguridad):
 	"""Queries the status of a previously submitted RFCE (Resumen < RD$250k)."""
 	token = get_token(rnc)
-	url = f"{FC_BASE_URL}/consultarfce/api/Consultas/Consulta"
+	url = f"{fc_base_url()}/consultarfce/api/Consultas/Consulta"
 	response = requests.get(
 		url,
 		params={
@@ -373,3 +384,37 @@ def refresh_ecf_status(ecf_name):
 		"mensaje": doc.mensaje,
 		"fecha_recepcion": doc.fecha_recepcion,
 	}
+
+
+def _send_download(filename, content):
+	frappe.local.response.filename = filename
+	frappe.local.response.filecontent = content
+	frappe.local.response.type = "download"
+
+
+@frappe.whitelist()
+def download_ecf_xml(ecf_name):
+	"""Downloads the stored, signed e-CF XML (named ``RNC + e-NCF``)."""
+	doc = frappe.get_doc("eCF", ecf_name)
+	if not doc.xml:
+		frappe.throw(_("El e-CF no tiene XML firmado."))
+	rnc, encf = _extract_rnc_and_encf(doc.xml)
+	_send_download(f"{rnc}{encf}.xml", doc.xml)
+
+
+@frappe.whitelist()
+def download_rfce_xml(ecf_name):
+	"""Builds, signs and downloads the RFCE (Resumen) for an e-CF.
+
+	DGII does not receive the full e-CF for consumption invoices below
+	RD$250,000; it receives this summary instead.
+	"""
+	doc = frappe.get_doc("eCF", ecf_name)
+	if not doc.xml:
+		frappe.throw(_("El e-CF no tiene XML firmado."))
+	root = etree.fromstring(doc.xml.encode() if isinstance(doc.xml, str) else doc.xml)
+	rfce_body = etree.tostring(
+		sign_ecf(build_xml_rfce(root)), xml_declaration=True, encoding="utf-8"
+	)
+	rnc, encf = _extract_rnc_and_encf(doc.xml)
+	_send_download(f"{rnc}{encf}.xml", rfce_body)

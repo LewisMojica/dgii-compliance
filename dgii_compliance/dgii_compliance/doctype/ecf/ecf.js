@@ -26,6 +26,16 @@ frappe.ui.form.on("eCF", {
 			});
 		});
 
+		frm.add_custom_button(__("Descargar e-CF"), function () {
+			download_xml("download_ecf_xml", frm);
+		});
+
+		if ((frm.doc.xml || "").indexOf("<TipoeCF>32</TipoeCF>") !== -1) {
+			frm.add_custom_button(__("Descargar RFCE (Resumen)"), function () {
+				download_xml("download_rfce_xml", frm);
+			});
+		}
+
 		// e-CFs have a Track ID; RFCEs (Resumen < RD$250k) do not, but were
 		// still submitted, so allow querying whenever we have a DGII estado.
 		if (frm.doc.track_id || frm.doc.estado) {
@@ -50,3 +60,12 @@ frappe.ui.form.on("eCF", {
 		}
 	},
 });
+
+function download_xml(method, frm) {
+	const url =
+		"/api/method/dgii_compliance.dgii_compliance.dgii_client." +
+		method +
+		"?ecf_name=" +
+		encodeURIComponent(frm.doc.name);
+	window.open(url);
+}

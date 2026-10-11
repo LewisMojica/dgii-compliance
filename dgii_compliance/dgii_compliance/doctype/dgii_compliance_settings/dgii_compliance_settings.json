@@ -7,6 +7,7 @@
  "field_order": [
   "facturaci\u00f3n_section",
   "invoicing_method",
+  "dgii_environment",
   "actions_section",
   "sync_rnc_data"
  ],
@@ -33,6 +34,16 @@
    "in_list_view": 1,
    "label": "Modo de facturaci\u00f3n",
    "options": "eNCF\nNCF",
+   "reqd": 1
+  },
+  {
+   "default": "testecf",
+   "description": "testecf = pre-certificaci\u00f3n, certecf = certificaci\u00f3n, ecf = producci\u00f3n",
+   "fieldname": "dgii_environment",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Ambiente DGII",
+   "options": "testecf\ncertecf\necf",
    "reqd": 1
   }
  ],
