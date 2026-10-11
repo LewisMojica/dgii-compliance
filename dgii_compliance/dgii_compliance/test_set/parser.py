@@ -11,6 +11,8 @@ done in :mod:`mapping`.
 """
 
 import datetime
+import json
+import os
 import re
 
 import openpyxl
@@ -109,6 +111,43 @@ def parse_workbook(path, sheet=DEFAULT_SHEET):
 		case = parse_case((row, header))
 		if case["encf"]:
 			cases.append(case)
+	return cases
+
+
+def _cache_path(path, sheet):
+	return f"{path}.{sheet}.cases.json"
+
+
+def _restore_int_keys(values):
+	return {int(key): value for key, value in values.items()}
+
+
+def _from_cache(cases):
+	for case in cases:
+		case["indexed"] = {base: _restore_int_keys(values) for base, values in case["indexed"].items()}
+		case["sub"] = {
+			base: {int(line): _restore_int_keys(subs) for line, subs in values.items()}
+			for base, values in case["sub"].items()
+		}
+	return cases
+
+
+def load_cases(path, sheet=DEFAULT_SHEET, use_cache=True):
+	"""Returns parsed cases, reusing a JSON cache while the workbook is unchanged.
+
+	Reading the 5,000+ column certification sheet is slow; the cache makes
+	repeated runs (restore, reconcile) fast.
+	"""
+	cache_path = _cache_path(path, sheet)
+	if use_cache and os.path.exists(cache_path):
+		if os.path.getmtime(cache_path) >= os.path.getmtime(path):
+			with open(cache_path, encoding="utf-8") as cache_file:
+				return _from_cache(json.load(cache_file))
+
+	cases = parse_workbook(path, sheet)
+	if use_cache:
+		with open(cache_path, "w", encoding="utf-8") as cache_file:
+			json.dump(cases, cache_file, ensure_ascii=False)
 	return cases
 
 

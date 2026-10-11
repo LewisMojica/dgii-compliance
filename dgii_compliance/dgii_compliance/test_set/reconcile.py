@@ -19,9 +19,26 @@ def _check(mismatches, label, expected, actual):
 		mismatches.append({"field": label, "expected": str(expected), "actual": str(actual)})
 
 
+def _empty(value):
+	return value in (None, "") or (isinstance(value, str) and not value.strip())
+
+
+NUMERIC_FIELDTYPES = {"Float", "Currency", "Int", "Percent", "Long Int"}
+
+
+def _check_empty(mismatches, label, actual, fieldtype=None):
+	# Numeric custom fields are NOT NULL DEFAULT 0 in MariaDB, so 0 is "unset".
+	if fieldtype in NUMERIC_FIELDTYPES:
+		return
+	if not _empty(actual):
+		mismatches.append({"field": label + " (debe estar vacío)", "expected": "", "actual": str(actual)})
+
+
 def reconcile_case(case, invoice_name):
 	"""Returns a list of ``{field, expected, actual}`` mismatches."""
 	doc = frappe.get_doc("Sales Invoice", invoice_name)
+	meta = frappe.get_meta("Sales Invoice")
+	detalle_meta = frappe.get_meta("eCF Detalle Item")
 	mismatches = []
 
 	# Header fields
@@ -30,6 +47,8 @@ def reconcile_case(case, invoice_name):
 			continue
 		expected = case["header"].get(column)
 		if expected is None:
+			fieldtype = meta.get_field(fieldname).fieldtype if meta.get_field(fieldname) else None
+			_check_empty(mismatches, fieldname, doc.get(fieldname), fieldtype)
 			continue
 		_check(mismatches, fieldname, mapping.convert(expected, kind), doc.get(fieldname))
 
@@ -47,6 +66,8 @@ def reconcile_case(case, invoice_name):
 		for base, (fieldname, kind) in mapping.ITEM_SCALARS.items():
 			expected = importer._item_scalar(case, base, line)
 			if expected is None:
+				df = detalle_meta.get_field(fieldname)
+				_check_empty(mismatches, f"linea[{line}].{fieldname}", row.get(fieldname), df.fieldtype if df else None)
 				continue
 			_check(mismatches, f"linea[{line}].{fieldname}", mapping.convert(expected, kind), row.get(fieldname))
 

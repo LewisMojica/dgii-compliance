@@ -87,6 +87,16 @@ class TestParser(unittest.TestCase):
 		self.assertEqual(len(cases), 2)
 		self.assertEqual(len(parser.dedupe(cases)), 1)
 
+	def test_load_cases_cache_round_trip(self):
+		path = _write_workbook([ROW])
+		parser.load_cases(path)  # writes the JSON cache
+		self.assertTrue(os.path.exists(parser._cache_path(path, "ECF")))
+		case = parser.load_cases(path)[0]  # reads the cache
+		self.assertEqual(case["encf"], "E310000000001")
+		# integer keys survive the JSON round-trip
+		self.assertIn(1, case["indexed"]["NombreItem"])
+		self.assertIn(1, case["sub"]["CodigoItem"])
+
 	def test_needs_rfce_only_for_small_e32(self):
 		small = {"tipo": "E32", "header": {"MontoTotal": "100000.00"}}
 		large = {"tipo": "E32", "header": {"MontoTotal": "300000.00"}}

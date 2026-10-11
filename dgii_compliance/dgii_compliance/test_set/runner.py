@@ -29,7 +29,7 @@ def run(path, sheet="ECF", mode="invoices", company=None, limit=None, only=None,
 	if mode not in MODES:
 		frappe.throw(f"Modo inválido '{mode}'. Use uno de {MODES}.")
 
-	cases = _filter(parser.dedupe(parser.parse_workbook(path, sheet)), only=only, limit=limit)
+	cases = _filter(parser.dedupe(parser.load_cases(path, sheet)), only=only, limit=limit)
 	summary = parser.summarize(cases)
 	result = {"mode": mode, "summary": summary}
 
