@@ -1,50 +1,65 @@
 """E45 - Comprobante Gubernamental Electrónico."""
 
-import frappe
 from lxml import etree
 
+from . import common
 from .common import (
 	NSMAP,
 	append_detalles_items,
-	append_emisor,
-	append_firma,
-	append_totales,
 	compute_dgii_tax_totals,
-	format_dgii_date,
-	get_comprador_rnc,
+	is_certification,
+	item_rows,
+	present_indicators,
+)
+
+ID_DOC_TAGS = [
+	"TipoeCF",
+	"eNCF",
+	"FechaVencimientoSecuencia",
+	"IndicadorEnvioDiferido",
+	"IndicadorMontoGravado",
+	"IndicadorServicioTodoIncluido",
+	"TipoIngresos",
+	"TipoPago",
+	"FechaLimitePago",
+	"TerminoPago",
+	"TablaFormasPago",
+	"TipoCuentaPago",
+	"NumeroCuentaPago",
+	"BancoPago",
+	"FechaDesde",
+	"FechaHasta",
+	"TotalPaginas",
+]
+
+_RNC_REQUIRED = (
+	"El RNC del comprador es requerido para el Comprobante Gubernamental "
+	"Electrónico (E45). Verifique el RNC del cliente."
 )
 
 
 def build(doc):
-	"""E45 Gubernamental: like E31 (gravado; RNCComprador + RazonSocial required)."""
-	tax_totals = compute_dgii_tax_totals(doc)
+	cert = is_certification(doc)
+	rows = item_rows(doc)
+	tax_totals = common.EMPTY_TOTALS if cert else compute_dgii_tax_totals(doc)
+	present = present_indicators(rows, tax_totals)
 
 	ecf_root = etree.Element("ECF", nsmap=NSMAP)
 	encabezado = etree.SubElement(ecf_root, "Encabezado")
-	etree.SubElement(encabezado, "Version").text = "1.0"
+	common.add(encabezado, "Version", "1.0")
 
-	iddoc = etree.SubElement(encabezado, "IdDoc")
-	etree.SubElement(iddoc, "TipoeCF").text = "45"
-	etree.SubElement(iddoc, "eNCF").text = doc.custom_ncf
-	etree.SubElement(iddoc, "FechaVencimientoSecuencia").text = format_dgii_date(doc.custom_ncf_vencimiento)
-	if tax_totals["monto_gravado_total"] > 0:
-		etree.SubElement(iddoc, "IndicadorMontoGravado").text = "1" if tax_totals["itbis_incluido"] else "0"
-	etree.SubElement(iddoc, "TipoIngresos").text = "01"
-	etree.SubElement(iddoc, "TipoPago").text = "1"
+	common.emit_id_doc(encabezado, doc, "E45", ID_DOC_TAGS, tax_totals)
+	common.emit_emisor(encabezado, doc)
+	common.emit_comprador(encabezado, doc, _RNC_REQUIRED, require_rnc=True)
+	common.emit_embarque(encabezado, doc)
+	common.emit_transporte(encabezado, doc)
+	common.emit_totales(encabezado, doc, present, tax_totals, cert)
+	common.emit_otra_moneda(encabezado, doc)
 
-	append_emisor(encabezado, doc)
-
-	comprador_rnc = get_comprador_rnc(doc)
-	if not comprador_rnc:
-		frappe.throw(
-			"El RNC del comprador es requerido para el Comprobante Gubernamental "
-			"Electrónico (E45). Verifique el RNC del cliente."
-		)
-	comprador = etree.SubElement(encabezado, "Comprador")
-	etree.SubElement(comprador, "RNCComprador").text = comprador_rnc
-	etree.SubElement(comprador, "RazonSocialComprador").text = doc.customer_name
-
-	append_totales(encabezado, doc, tax_totals)
-	append_detalles_items(ecf_root, doc, tax_totals)
-	append_firma(ecf_root)
+	if cert:
+		common.emit_items(ecf_root, doc, rows, tax_totals, cert)
+	else:
+		append_detalles_items(ecf_root, doc, tax_totals)
+	common.emit_referencia(ecf_root, doc)
+	common.append_firma(ecf_root)
 	return ecf_root
