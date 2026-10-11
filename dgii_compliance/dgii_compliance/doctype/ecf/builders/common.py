@@ -344,3 +344,374 @@ def add_container(parent, tag, children):
 		else:
 			add(container, child_tag, value)
 	return container
+
+
+# --- Canonical section emitters -------------------------------------------------
+# The e-CF types share the same Encabezado/Item element vocabulary with per-type
+# subsets, so these emitters walk the canonical (E31) order and simply skip
+# absent values. Each type module declares which tags apply to it and composes
+# the sections; XSD validation catches anything a type does not allow.
+
+_ID_DOC_FIXED = {
+	"TipoCuentaPago": "custom_ecf_tipo_cuenta_pago",
+	"NumeroCuentaPago": "custom_ecf_numero_cuenta_pago",
+	"BancoPago": "custom_ecf_banco_pago",
+}
+
+
+def _indicador_monto_gravado(doc, tax_totals):
+	value = opt(doc, "custom_ecf_indicador_monto_gravado")
+	if value is None and not is_certification(doc) and (tax_totals or {}).get("monto_gravado_total", 0) > 0:
+		value = "1" if tax_totals.get("itbis_incluido") else "0"
+	return value
+
+
+def emit_id_doc(parent, doc, tipo, tags, tax_totals):
+	iddoc = etree.SubElement(parent, "IdDoc")
+	for tag in tags:
+		if tag == "TipoeCF":
+			add(iddoc, tag, tipo[1:])
+		elif tag == "eNCF":
+			add(iddoc, tag, doc.custom_ncf)
+		elif tag == "FechaVencimientoSecuencia":
+			add_date(iddoc, tag, doc.custom_ncf_vencimiento)
+		elif tag == "IndicadorNotaCredito":
+			add(iddoc, tag, opt(doc, "custom_ecf_indicador_nota_credito"))
+		elif tag == "IndicadorMontoGravado":
+			add(iddoc, tag, _indicador_monto_gravado(doc, tax_totals))
+		elif tag == "TipoIngresos":
+			add(iddoc, tag, should_use(doc, "custom_ecf_tipo_ingresos", "01"))
+		elif tag == "TipoPago":
+			add(iddoc, tag, should_use(doc, "custom_ecf_tipo_pago", "1"))
+		elif tag == "FechaLimitePago":
+			add_date(iddoc, tag, opt(doc, "custom_ecf_fecha_limite_pago"))
+		elif tag == "TerminoPago":
+			add(iddoc, tag, opt(doc, "custom_ecf_termino_pago"))
+		elif tag == "TablaFormasPago":
+			emit_formas_pago(iddoc, doc)
+		elif tag in _ID_DOC_FIXED:
+			add(iddoc, tag, opt(doc, _ID_DOC_FIXED[tag]))
+		elif tag == "FechaDesde":
+			add_date(iddoc, tag, opt(doc, "custom_ecf_fecha_desde"))
+		elif tag == "FechaHasta":
+			add_date(iddoc, tag, opt(doc, "custom_ecf_fecha_hasta"))
+		elif tag == "TotalPaginas":
+			add_int(iddoc, tag, opt(doc, "custom_ecf_total_paginas"))
+	return iddoc
+
+
+def emit_formas_pago(iddoc, doc):
+	rows = doc.get("custom_ecf_formas_pago") or []
+	if not rows:
+		return None
+	tabla = etree.SubElement(iddoc, "TablaFormasPago")
+	for row in rows:
+		forma = etree.SubElement(tabla, "FormaDePago")
+		add(forma, "FormaPago", row.forma_pago or "1")
+		add_amount_force(forma, "MontoPago", row.monto_pago)
+	return tabla
+
+
+def emit_emisor(parent, doc):
+	emisor = etree.SubElement(parent, "Emisor")
+	add(emisor, "RNCEmisor", doc.company_tax_id)
+	add(emisor, "RazonSocialEmisor", should_use(doc, "custom_ecf_razon_social_emisor", doc.company))
+	add(emisor, "NombreComercial", opt(doc, "custom_ecf_nombre_comercial"))
+	add(emisor, "Sucursal", opt(doc, "custom_ecf_sucursal"))
+	add(emisor, "DireccionEmisor", should_use(doc, "custom_ecf_direccion_emisor", doc.company_address_display))
+	add(emisor, "Municipio", opt(doc, "custom_ecf_municipio"))
+	add(emisor, "Provincia", opt(doc, "custom_ecf_provincia"))
+	phones = [opt(doc, f"custom_ecf_telefono_emisor_{idx}") for idx in (1, 2, 3)]
+	phones = [phone for phone in phones if phone]
+	if phones:
+		tabla = etree.SubElement(emisor, "TablaTelefonoEmisor")
+		for phone in phones:
+			add(tabla, "TelefonoEmisor", phone)
+	add(emisor, "CorreoEmisor", opt(doc, "custom_ecf_correo_emisor"))
+	add(emisor, "WebSite", opt(doc, "custom_ecf_web_site"))
+	add(emisor, "ActividadEconomica", opt(doc, "custom_ecf_actividad_economica"))
+	add(emisor, "CodigoVendedor", opt(doc, "custom_ecf_codigo_vendedor"))
+	add(emisor, "NumeroFacturaInterna", opt(doc, "custom_ecf_numero_factura_interna"))
+	add(emisor, "NumeroPedidoInterno", opt(doc, "custom_ecf_numero_pedido_interno"))
+	add(emisor, "ZonaVenta", opt(doc, "custom_ecf_zona_venta"))
+	add(emisor, "RutaVenta", opt(doc, "custom_ecf_ruta_venta"))
+	add(emisor, "InformacionAdicionalEmisor", opt(doc, "custom_ecf_informacion_adicional_emisor"))
+	emission = opt(doc, "custom_ecf_fecha_emision") or datetime.datetime.today().strftime("%d-%m-%Y")
+	add_date(emisor, "FechaEmision", emission)
+	return emisor
+
+
+def emit_comprador(parent, doc, require_rnc_message, require_rnc=False):
+	comprador = etree.SubElement(parent, "Comprador")
+	rnc = should_use(doc, "custom_ecf_rnc_comprador", get_comprador_rnc(doc))
+	if require_rnc and not rnc and not is_certification(doc):
+		frappe.throw(require_rnc_message)
+	add(comprador, "RNCComprador", rnc)
+	add(comprador, "IdentificadorExtranjero", opt(doc, "custom_ecf_identificador_extranjero"))
+	add(
+		comprador,
+		"RazonSocialComprador",
+		should_use(doc, "custom_ecf_razon_social_comprador", doc.customer_name or "Consumidor Final"),
+	)
+	add(comprador, "ContactoComprador", opt(doc, "custom_ecf_contacto_comprador"))
+	add(comprador, "CorreoComprador", opt(doc, "custom_ecf_correo_comprador"))
+	add(comprador, "DireccionComprador", opt(doc, "custom_ecf_direccion_comprador"))
+	add(comprador, "MunicipioComprador", opt(doc, "custom_ecf_municipio_comprador"))
+	add(comprador, "ProvinciaComprador", opt(doc, "custom_ecf_provincia_comprador"))
+	add(comprador, "PaisComprador", opt(doc, "custom_ecf_pais_comprador"))
+	add_date(comprador, "FechaEntrega", opt(doc, "custom_ecf_fecha_entrega"))
+	add(comprador, "ContactoEntrega", opt(doc, "custom_ecf_contacto_entrega"))
+	add(comprador, "DireccionEntrega", opt(doc, "custom_ecf_direccion_entrega"))
+	add(comprador, "TelefonoAdicional", opt(doc, "custom_ecf_telefono_adicional"))
+	add_date(comprador, "FechaOrdenCompra", opt(doc, "custom_ecf_fecha_orden_compra"))
+	add(comprador, "NumeroOrdenCompra", opt(doc, "custom_ecf_numero_orden_compra"))
+	add(comprador, "CodigoInternoComprador", opt(doc, "custom_ecf_codigo_interno_comprador"))
+	add(comprador, "ResponsablePago", opt(doc, "custom_ecf_responsable_pago"))
+	add(comprador, "InformacionAdicionalComprador", opt(doc, "custom_ecf_informacion_adicional_comprador"))
+	return comprador
+
+
+def emit_embarque(parent, doc):
+	return add_container(
+		parent,
+		"InformacionesAdicionales",
+		[
+			("FechaEmbarque", opt(doc, "custom_ecf_fecha_embarque"), "date"),
+			("NumeroEmbarque", opt(doc, "custom_ecf_numero_embarque"), "text"),
+			("NumeroContenedor", opt(doc, "custom_ecf_numero_contenedor"), "text"),
+			("NumeroReferencia", opt(doc, "custom_ecf_numero_referencia"), "text"),
+			("PesoBruto", num(doc, "custom_ecf_peso_bruto"), "amount"),
+			("PesoNeto", num(doc, "custom_ecf_peso_neto"), "amount"),
+			("UnidadPesoBruto", opt(doc, "custom_ecf_unidad_peso_bruto"), "text"),
+			("UnidadPesoNeto", opt(doc, "custom_ecf_unidad_peso_neto"), "text"),
+			("CantidadBulto", num(doc, "custom_ecf_cantidad_bulto"), "amount"),
+			("UnidadBulto", opt(doc, "custom_ecf_unidad_bulto"), "text"),
+			("VolumenBulto", num(doc, "custom_ecf_volumen_bulto"), "amount"),
+			("UnidadVolumen", opt(doc, "custom_ecf_unidad_volumen"), "text"),
+		],
+	)
+
+
+def emit_transporte(parent, doc):
+	return add_container(
+		parent,
+		"Transporte",
+		[
+			("Conductor", opt(doc, "custom_ecf_conductor"), "text"),
+			("DocumentoTransporte", opt(doc, "custom_ecf_documento_transporte"), "text"),
+			("Ficha", opt(doc, "custom_ecf_ficha"), "text"),
+			("Placa", opt(doc, "custom_ecf_placa"), "text"),
+			("RutaTransporte", opt(doc, "custom_ecf_ruta_transporte"), "text"),
+			("ZonaTransporte", opt(doc, "custom_ecf_zona_transporte"), "text"),
+			("NumeroAlbaran", opt(doc, "custom_ecf_numero_albaran"), "text"),
+		],
+	)
+
+
+EMPTY_TOTALS = {
+	"line_indicators": [],
+	"buckets": {},
+	"monto_gravado": {},
+	"total_itbis": {},
+	"monto_gravado_total": 0.0,
+	"total_itbis_sum": 0.0,
+	"itbis_incluido": False,
+}
+
+
+def present_indicators(rows, tax_totals):
+	indicators = {
+		str(row.indicador_facturacion).strip()
+		for row in rows.values()
+		if row.get("indicador_facturacion")
+	}
+	return indicators or set((tax_totals or {}).get("line_indicators") or [])
+
+
+def emit_totales(parent, doc, present, tax_totals, cert):
+	if not cert:
+		append_totales(parent, doc, tax_totals)
+		return
+
+	totales = etree.SubElement(parent, "Totales")
+	add_amount(totales, "MontoGravadoTotal", num(doc, "custom_ecf_monto_gravado_total"))
+	for code, tag in (("1", "MontoGravadoI1"), ("2", "MontoGravadoI2"), ("3", "MontoGravadoI3")):
+		if code in present:
+			add_amount(totales, tag, num(doc, f"custom_ecf_monto_gravado_i{code}"))
+	if "4" in present:
+		add_amount(totales, "MontoExento", num(doc, "custom_ecf_monto_exento"))
+	for code, tag, rate in (("1", "ITBIS1", "18"), ("2", "ITBIS2", "16"), ("3", "ITBIS3", "0")):
+		if code in present:
+			add(totales, tag, rate)
+	if present & {"1", "2", "3"}:
+		add_amount_force(totales, "TotalITBIS", num(doc, "custom_ecf_total_itbis") or 0)
+	for code, tag in (("1", "TotalITBIS1"), ("2", "TotalITBIS2"), ("3", "TotalITBIS3")):
+		if code in present:
+			add_amount_force(totales, tag, num(doc, f"custom_ecf_total_itbis{code}") or 0)
+	add_amount(totales, "MontoImpuestoAdicional", num(doc, "custom_ecf_monto_impuesto_adicional"))
+	add_amount_force(totales, "MontoTotal", num(doc, "custom_ecf_monto_total") or doc.grand_total)
+	add_amount(totales, "MontoNoFacturable", num(doc, "custom_ecf_monto_no_facturable"))
+	add_amount(totales, "MontoPeriodo", num(doc, "custom_ecf_monto_periodo"))
+	add_amount(totales, "SaldoAnterior", num(doc, "custom_ecf_saldo_anterior"))
+	add_amount(totales, "MontoAvancePago", num(doc, "custom_ecf_monto_avance_pago"))
+	add_amount(totales, "ValorPagar", num(doc, "custom_ecf_valor_pagar"))
+	add_amount(totales, "TotalITBISRetenido", num(doc, "custom_ecf_total_itbis_retenido"))
+	add_amount(totales, "TotalISRRetencion", num(doc, "custom_ecf_total_isr_retencion"))
+	add_amount(totales, "TotalITBISPercepcion", num(doc, "custom_ecf_total_itbis_percepcion"))
+	add_amount(totales, "TotalISRPercepcion", num(doc, "custom_ecf_total_isr_percepcion"))
+	return totales
+
+
+def emit_otra_moneda(parent, doc):
+	if not opt(doc, "custom_ecf_tipo_moneda"):
+		return None
+	om = etree.SubElement(parent, "OtraMoneda")
+	add(om, "TipoMoneda", opt(doc, "custom_ecf_tipo_moneda"))
+	add_amount(om, "TipoCambio", num(doc, "custom_ecf_tipo_cambio"))
+	add_amount(om, "MontoGravadoTotalOtraMoneda", num(doc, "custom_ecf_monto_gravado_total_otra_moneda"))
+	add_amount(om, "MontoGravado1OtraMoneda", num(doc, "custom_ecf_monto_gravado1_otra_moneda"))
+	add_amount(om, "MontoGravado2OtraMoneda", num(doc, "custom_ecf_monto_gravado2_otra_moneda"))
+	add_amount(om, "MontoGravado3OtraMoneda", num(doc, "custom_ecf_monto_gravado3_otra_moneda"))
+	add_amount(om, "MontoExentoOtraMoneda", num(doc, "custom_ecf_monto_exento_otra_moneda"))
+	add_amount(om, "TotalITBISOtraMoneda", num(doc, "custom_ecf_total_itbis_otra_moneda"))
+	add_amount(om, "TotalITBIS1OtraMoneda", num(doc, "custom_ecf_total_itbis1_otra_moneda"))
+	add_amount(om, "TotalITBIS2OtraMoneda", num(doc, "custom_ecf_total_itbis2_otra_moneda"))
+	add_amount(om, "TotalITBIS3OtraMoneda", num(doc, "custom_ecf_total_itbis3_otra_moneda"))
+	add_amount(om, "MontoImpuestoAdicionalOtraMoneda", num(doc, "custom_ecf_monto_impuesto_adicional_otra_moneda"))
+	add_amount(om, "MontoTotalOtraMoneda", num(doc, "custom_ecf_monto_total_otra_moneda"))
+	return om
+
+
+def emit_referencia(parent, doc):
+	return add_container(
+		parent,
+		"InformacionReferencia",
+		[
+			("NCFModificado", opt(doc, "custom_ecf_ncf_modificado"), "text"),
+			("RNCOtroContribuyente", opt(doc, "custom_ecf_rnc_otro_contribuyente"), "text"),
+			("FechaNCFModificado", opt(doc, "custom_ecf_fecha_ncf_modificado"), "date"),
+			("CodigoModificacion", opt(doc, "custom_ecf_codigo_modificacion"), "text"),
+			("RazonModificacion", opt(doc, "custom_ecf_razon_modificacion"), "text"),
+		],
+	)
+
+
+# --- DetallesItems ---
+
+_CODIGO_GROUP = [("TipoCodigo", "tipo_codigo"), ("CodigoItem", "codigo_item")]
+_SUBDESCUENTO_GROUP = [
+	("TipoSubDescuento", "tipo_sub_descuento"),
+	("SubDescuentoPorcentaje", "sub_descuento_porcentaje"),
+	("MontoSubDescuento", "monto_sub_descuento"),
+]
+_SUBRECARGO_GROUP = [
+	("TipoSubRecargo", "tipo_sub_recargo"),
+	("SubRecargoPorcentaje", "sub_recargo_porcentaje"),
+	("MontoSubRecargo", "monto_sub_recargo"),
+]
+
+
+def emit_items(ecf_root, doc, rows, tax_totals, cert):
+	detalles = etree.SubElement(ecf_root, "DetallesItems")
+	line_indicators = (tax_totals or {}).get("line_indicators") or []
+	for idx, item in enumerate(doc.items):
+		line = idx + 1
+		row = rows.get(line)
+		node = etree.SubElement(detalles, "Item")
+
+		add(node, "NumeroLinea", line)
+		_emit_child_group(node, doc, line, "custom_ecf_codigos_item", "TablaCodigosItem", "CodigosItem", _CODIGO_GROUP)
+		indicador = _row_value(row, "indicador_facturacion") or (line_indicators[idx] if idx < len(line_indicators) else None)
+		add(node, "IndicadorFacturacion", indicador)
+		_emit_retencion(node, row)
+		add(node, "NombreItem", _line_value(cert, row, "nombre_item", item.item_name))
+		add(
+			node,
+			"IndicadorBienoServicio",
+			_line_value(cert, row, "indicador_bieno_servicio", "1" if item_is_bien(item) else "2"),
+		)
+		add(node, "DescripcionItem", _row_value(row, "descripcion_item"))
+		add_amount_force(node, "CantidadItem", _line_num(cert, row, "cantidad_item", item.qty))
+		add(node, "UnidadMedida", _row_value(row, "unidad_medida"))
+		add_amount(node, "CantidadReferencia", _row_num(row, "cantidad_referencia"))
+		add(node, "UnidadReferencia", _row_value(row, "unidad_referencia"))
+		add_amount(node, "GradosAlcohol", _row_num(row, "grados_alcohol"))
+		add_amount(node, "PrecioUnitarioReferencia", _row_num(row, "precio_unitario_referencia"))
+		add_date(node, "FechaElaboracion", _row_value(row, "fecha_elaboracion"))
+		add_date(node, "FechaVencimientoItem", _row_value(row, "fecha_vencimiento_item"))
+		add_amount_force(node, "PrecioUnitarioItem", _line_num(cert, row, "precio_unitario_item", item.rate))
+		add_amount(node, "DescuentoMonto", _row_num(row, "descuento_monto"))
+		_emit_child_group(node, doc, line, "custom_ecf_sub_descuentos", "TablaSubDescuento", "SubDescuento", _SUBDESCUENTO_GROUP)
+		add_amount(node, "RecargoMonto", _row_num(row, "recargo_monto"))
+		_emit_child_group(node, doc, line, "custom_ecf_sub_recargos", "TablaSubRecargo", "SubRecargo", _SUBRECARGO_GROUP)
+		_emit_otra_moneda_detalle(node, row)
+		add_amount_force(node, "MontoItem", _line_num(cert, row, "monto_item", item.amount))
+	return detalles
+
+
+def _row_value(row, fieldname):
+	if row is None:
+		return None
+	return opt(row, fieldname)
+
+
+def _row_num(row, fieldname):
+	if row is None:
+		return None
+	return num(row, fieldname)
+
+
+def _line_value(cert, row, fieldname, fallback):
+	value = _row_value(row, fieldname)
+	if value is not None:
+		return value
+	return None if cert else fallback
+
+
+def _line_num(cert, row, fieldname, fallback):
+	value = _row_num(row, fieldname)
+	if value is not None:
+		return value
+	return None if cert else fallback
+
+
+def _emit_child_group(node, doc, line, parentfield, table_tag, row_tag, group):
+	rows = [row for row in (doc.get(parentfield) or []) if row.numero_linea == line]
+	if not rows:
+		return None
+	table = etree.SubElement(node, table_tag)
+	for row in rows:
+		child = etree.SubElement(table, row_tag)
+		for tag, fieldname in group:
+			if fieldname.endswith(("porcentaje", "monto", "monto_sub_descuento", "monto_sub_recargo")):
+				add_amount(child, tag, num(row, fieldname))
+			else:
+				add(child, tag, opt(row, fieldname))
+	return table
+
+
+def _emit_retencion(node, row):
+	if row is None:
+		return None
+	return add_container(
+		node,
+		"Retencion",
+		[
+			("IndicadorAgenteRetencionoPercepcion", opt(row, "indicador_agente_retencion"), "text"),
+			("MontoITBISRetenido", num(row, "monto_itbis_retenido"), "amount"),
+			("MontoISRRetenido", num(row, "monto_isr_retenido"), "amount"),
+		],
+	)
+
+
+def _emit_otra_moneda_detalle(node, row):
+	if row is None:
+		return None
+	return add_container(
+		node,
+		"OtraMonedaDetalle",
+		[
+			("PrecioOtraMoneda", num(row, "precio_otra_moneda"), "amount"),
+			("MontoItemOtraMoneda", num(row, "monto_item_otra_moneda"), "amount"),
+		],
+	)
