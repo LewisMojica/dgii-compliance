@@ -69,33 +69,28 @@
   },
   {
    "fieldname": "cantidad_item",
-   "fieldtype": "Float",
-   "label": "Cantidad",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Cantidad"
   },
   {
    "fieldname": "precio_unitario_item",
-   "fieldtype": "Float",
-   "label": "Precio Unitario",
-   "precision": "4"
+   "fieldtype": "Data",
+   "label": "Precio Unitario"
   },
   {
    "fieldname": "monto_item",
-   "fieldtype": "Float",
-   "label": "Monto Ítem",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Monto Ítem"
   },
   {
    "fieldname": "descuento_monto",
-   "fieldtype": "Float",
-   "label": "Descuento Monto",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Descuento Monto"
   },
   {
    "fieldname": "recargo_monto",
-   "fieldtype": "Float",
-   "label": "Recargo Monto",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Recargo Monto"
   },
   {
    "fieldname": "indicador_agente_retencion",
@@ -105,15 +100,13 @@
   },
   {
    "fieldname": "monto_itbis_retenido",
-   "fieldtype": "Float",
-   "label": "Monto ITBIS Retenido",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Monto ITBIS Retenido"
   },
   {
    "fieldname": "monto_isr_retenido",
-   "fieldtype": "Float",
-   "label": "Monto ISR Retenido",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Monto ISR Retenido"
   },
   {
    "fieldname": "fecha_elaboracion",
@@ -127,9 +120,8 @@
   },
   {
    "fieldname": "cantidad_referencia",
-   "fieldtype": "Float",
-   "label": "Cantidad Referencia",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Cantidad Referencia"
   },
   {
    "fieldname": "unidad_referencia",
@@ -138,27 +130,23 @@
   },
   {
    "fieldname": "grados_alcohol",
-   "fieldtype": "Float",
-   "label": "Grados Alcohol",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Grados Alcohol"
   },
   {
    "fieldname": "precio_unitario_referencia",
-   "fieldtype": "Float",
-   "label": "Precio Unitario Referencia",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Precio Unitario Referencia"
   },
   {
    "fieldname": "precio_otra_moneda",
-   "fieldtype": "Float",
-   "label": "Precio Otra Moneda",
-   "precision": "4"
+   "fieldtype": "Data",
+   "label": "Precio Otra Moneda"
   },
   {
    "fieldname": "monto_item_otra_moneda",
-   "fieldtype": "Float",
-   "label": "Monto Ítem Otra Moneda",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Monto Ítem Otra Moneda"
   }
  ],
  "index_web_pages_for_search": 1,

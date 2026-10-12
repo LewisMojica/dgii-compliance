@@ -28,15 +28,13 @@
   },
   {
    "fieldname": "sub_descuento_porcentaje",
-   "fieldtype": "Float",
-   "label": "Sub-Descuento %",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Sub-Descuento %"
   },
   {
    "fieldname": "monto_sub_descuento",
-   "fieldtype": "Float",
-   "label": "Monto Sub-Descuento",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Monto Sub-Descuento"
   }
  ],
  "index_web_pages_for_search": 1,

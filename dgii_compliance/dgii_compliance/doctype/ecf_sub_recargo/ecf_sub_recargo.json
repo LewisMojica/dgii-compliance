@@ -28,15 +28,13 @@
   },
   {
    "fieldname": "sub_recargo_porcentaje",
-   "fieldtype": "Float",
-   "label": "Sub-Recargo %",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Sub-Recargo %"
   },
   {
    "fieldname": "monto_sub_recargo",
-   "fieldtype": "Float",
-   "label": "Monto Sub-Recargo",
-   "precision": "2"
+   "fieldtype": "Data",
+   "label": "Monto Sub-Recargo"
   }
  ],
  "index_web_pages_for_search": 1,
