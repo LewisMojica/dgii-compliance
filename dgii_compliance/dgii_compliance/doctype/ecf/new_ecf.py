@@ -1,6 +1,3 @@
-import base64
-import hashlib
-
 import frappe
 from lxml import etree
 
@@ -95,14 +92,15 @@ DS_NS = "http://www.w3.org/2000/09/xmldsig#"
 
 
 def compute_security_code(signature_value):
-	"""First 6 characters of the SHA-256 hash of the e-CF SignatureValue.
+	"""First 6 characters of the e-CF's ``SignatureValue``.
 
-	Used as ``CodigoSeguridadeCF`` in the RFCE (DGII marks it "sin validación").
+	Used as ``CodigoSeguridadeCF`` in the RFCE (Resumen). DGII cross-checks it
+	against the first 6 characters of the signature of the full e-CF, so it must
+	be the raw signature prefix (not a hash of it).
 	"""
 	if not signature_value:
 		return None
-	digest = hashlib.sha256(signature_value.encode("utf-8")).digest()
-	return base64.b64encode(digest).decode("ascii")[:6]
+	return signature_value[:6]
 
 
 def build_xml_rfce(signed_ecf_root):
