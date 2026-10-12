@@ -26,13 +26,16 @@ frappe.ui.form.on("eCF", {
 			});
 		});
 
-		frm.add_custom_button(__("Descargar e-CF"), function () {
-			download_xml("download_ecf_xml", frm);
-		});
-
-		if ((frm.doc.xml || "").indexOf("<TipoeCF>32</TipoeCF>") !== -1) {
+		// Consumption invoices below RD$250k are submitted to DGII as a Resumen
+		// (RFCE), not as the full e-CF; offer only the correct file to avoid
+		// uploading the wrong one.
+		if (is_small_consumption(frm.doc.xml)) {
 			frm.add_custom_button(__("Descargar RFCE (Resumen)"), function () {
 				download_xml("download_rfce_xml", frm);
+			});
+		} else {
+			frm.add_custom_button(__("Descargar e-CF"), function () {
+				download_xml("download_ecf_xml", frm);
 			});
 		}
 
@@ -68,4 +71,13 @@ function download_xml(method, frm) {
 		"?ecf_name=" +
 		encodeURIComponent(frm.doc.name);
 	window.open(url);
+}
+
+function is_small_consumption(xml) {
+	xml = xml || "";
+	if (xml.indexOf("<TipoeCF>32</TipoeCF>") === -1) {
+		return false;
+	}
+	const match = xml.match(/<MontoTotal>([^<]+)<\/MontoTotal>/);
+	return match ? parseFloat(match[1]) < 250000 : false;
 }
