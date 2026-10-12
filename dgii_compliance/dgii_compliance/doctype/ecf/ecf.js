@@ -26,16 +26,16 @@ frappe.ui.form.on("eCF", {
 			});
 		});
 
-		// Consumption invoices below RD$250k are submitted to DGII as a Resumen
-		// (RFCE), not as the full e-CF; offer only the correct file to avoid
-		// uploading the wrong one.
+		// Full, signed e-CF. For <250k consumption invoices this is uploaded
+		// manually to the DGII portal AFTER the Resumen (sent via "Enviar a
+		// DGII") is accepted.
+		frm.add_custom_button(__("Descargar e-CF"), function () {
+			download_xml("download_ecf_xml", frm);
+		});
+
 		if (is_small_consumption(frm.doc.xml)) {
 			frm.add_custom_button(__("Descargar RFCE (Resumen)"), function () {
 				download_xml("download_rfce_xml", frm);
-			});
-		} else {
-			frm.add_custom_button(__("Descargar e-CF"), function () {
-				download_xml("download_ecf_xml", frm);
 			});
 		}
 
