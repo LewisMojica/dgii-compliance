@@ -237,12 +237,9 @@ def _apply_child_group(doc, case, group, child_field):
 			doc.append(child_field, row)
 
 
-_FLOAT_CHILD = {
-	"sub_descuento_porcentaje",
-	"monto_sub_descuento",
-	"sub_recargo_porcentaje",
-	"monto_sub_recargo",
-}
+# e-CF numeric values are stored as the raw delivered strings (exact decimals),
+# so no child field needs float coercion.
+_FLOAT_CHILD = set()
 
 
 def _rows_by_line(case, bases):

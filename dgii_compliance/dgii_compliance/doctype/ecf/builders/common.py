@@ -568,7 +568,10 @@ def emit_otra_moneda(parent, doc):
 		return None
 	om = etree.SubElement(parent, "OtraMoneda")
 	add(om, "TipoMoneda", opt(doc, "custom_ecf_tipo_moneda"))
-	add_amount(om, "TipoCambio", num(doc, "custom_ecf_tipo_cambio"))
+	if is_certification(doc):
+		add(om, "TipoCambio", opt(doc, "custom_ecf_tipo_cambio"))
+	else:
+		add_amount(om, "TipoCambio", num(doc, "custom_ecf_tipo_cambio"))
 	add_amount(om, "MontoGravadoTotalOtraMoneda", num(doc, "custom_ecf_monto_gravado_total_otra_moneda"))
 	add_amount(om, "MontoGravado1OtraMoneda", num(doc, "custom_ecf_monto_gravado1_otra_moneda"))
 	add_amount(om, "MontoGravado2OtraMoneda", num(doc, "custom_ecf_monto_gravado2_otra_moneda"))
@@ -613,6 +616,7 @@ _SUBRECARGO_GROUP = [
 
 
 def emit_items(ecf_root, doc, rows, tax_totals, cert):
+	"""Emits <DetallesItems> for certification (values taken verbatim from rows)."""
 	detalles = etree.SubElement(ecf_root, "DetallesItems")
 	line_indicators = (tax_totals or {}).get("line_indicators") or []
 	for idx, item in enumerate(doc.items):
@@ -625,28 +629,28 @@ def emit_items(ecf_root, doc, rows, tax_totals, cert):
 		indicador = _row_value(row, "indicador_facturacion") or (line_indicators[idx] if idx < len(line_indicators) else None)
 		add(node, "IndicadorFacturacion", indicador)
 		_emit_retencion(node, row)
-		add(node, "NombreItem", _line_value(cert, row, "nombre_item", item.item_name))
+		add(node, "NombreItem", _row_value(row, "nombre_item") or item.item_name)
 		add(
 			node,
 			"IndicadorBienoServicio",
-			_line_value(cert, row, "indicador_bieno_servicio", "1" if item_is_bien(item) else "2"),
+			_row_value(row, "indicador_bieno_servicio") or ("1" if item_is_bien(item) else "2"),
 		)
 		add(node, "DescripcionItem", _row_value(row, "descripcion_item"))
-		add_amount_force(node, "CantidadItem", _line_num(cert, row, "cantidad_item", item.qty))
+		add(node, "CantidadItem", _row_value(row, "cantidad_item") or f"{flt(item.qty):.2f}")
 		add(node, "UnidadMedida", _row_value(row, "unidad_medida"))
-		add_amount(node, "CantidadReferencia", _row_num(row, "cantidad_referencia"))
+		add(node, "CantidadReferencia", _row_value(row, "cantidad_referencia"))
 		add(node, "UnidadReferencia", _row_value(row, "unidad_referencia"))
-		add_amount(node, "GradosAlcohol", _row_num(row, "grados_alcohol"))
-		add_amount(node, "PrecioUnitarioReferencia", _row_num(row, "precio_unitario_referencia"))
+		add(node, "GradosAlcohol", _row_value(row, "grados_alcohol"))
+		add(node, "PrecioUnitarioReferencia", _row_value(row, "precio_unitario_referencia"))
 		add_date(node, "FechaElaboracion", _row_value(row, "fecha_elaboracion"))
 		add_date(node, "FechaVencimientoItem", _row_value(row, "fecha_vencimiento_item"))
-		add_amount_force(node, "PrecioUnitarioItem", _line_num(cert, row, "precio_unitario_item", item.rate))
-		add_amount(node, "DescuentoMonto", _row_num(row, "descuento_monto"))
+		add(node, "PrecioUnitarioItem", _row_value(row, "precio_unitario_item") or f"{flt(item.rate):.2f}")
+		add(node, "DescuentoMonto", _row_value(row, "descuento_monto"))
 		_emit_child_group(node, doc, line, "custom_ecf_sub_descuentos", "TablaSubDescuento", "SubDescuento", _SUBDESCUENTO_GROUP)
-		add_amount(node, "RecargoMonto", _row_num(row, "recargo_monto"))
+		add(node, "RecargoMonto", _row_value(row, "recargo_monto"))
 		_emit_child_group(node, doc, line, "custom_ecf_sub_recargos", "TablaSubRecargo", "SubRecargo", _SUBRECARGO_GROUP)
 		_emit_otra_moneda_detalle(node, row)
-		add_amount_force(node, "MontoItem", _line_num(cert, row, "monto_item", item.amount))
+		add(node, "MontoItem", _row_value(row, "monto_item") or f"{flt(item.amount):.2f}")
 	return detalles
 
 
@@ -654,26 +658,6 @@ def _row_value(row, fieldname):
 	if row is None:
 		return None
 	return opt(row, fieldname)
-
-
-def _row_num(row, fieldname):
-	if row is None:
-		return None
-	return num(row, fieldname)
-
-
-def _line_value(cert, row, fieldname, fallback):
-	value = _row_value(row, fieldname)
-	if value is not None:
-		return value
-	return None if cert else fallback
-
-
-def _line_num(cert, row, fieldname, fallback):
-	value = _row_num(row, fieldname)
-	if value is not None:
-		return value
-	return None if cert else fallback
 
 
 def _emit_child_group(node, doc, line, parentfield, table_tag, row_tag, group):
@@ -684,10 +668,7 @@ def _emit_child_group(node, doc, line, parentfield, table_tag, row_tag, group):
 	for row in rows:
 		child = etree.SubElement(table, row_tag)
 		for tag, fieldname in group:
-			if fieldname.endswith(("porcentaje", "monto", "monto_sub_descuento", "monto_sub_recargo")):
-				add_amount(child, tag, num(row, fieldname))
-			else:
-				add(child, tag, opt(row, fieldname))
+			add(child, tag, opt(row, fieldname))
 	return table
 
 
@@ -699,8 +680,8 @@ def _emit_retencion(node, row):
 		"Retencion",
 		[
 			("IndicadorAgenteRetencionoPercepcion", opt(row, "indicador_agente_retencion"), "text"),
-			("MontoITBISRetenido", num(row, "monto_itbis_retenido"), "amount"),
-			("MontoISRRetenido", num(row, "monto_isr_retenido"), "amount"),
+			("MontoITBISRetenido", opt(row, "monto_itbis_retenido"), "text"),
+			("MontoISRRetenido", opt(row, "monto_isr_retenido"), "text"),
 		],
 	)
 
@@ -712,7 +693,7 @@ def _emit_otra_moneda_detalle(node, row):
 		node,
 		"OtraMonedaDetalle",
 		[
-			("PrecioOtraMoneda", num(row, "precio_otra_moneda"), "amount"),
-			("MontoItemOtraMoneda", num(row, "monto_item_otra_moneda"), "amount"),
+			("PrecioOtraMoneda", opt(row, "precio_otra_moneda"), "text"),
+			("MontoItemOtraMoneda", opt(row, "monto_item_otra_moneda"), "text"),
 		],
 	)
