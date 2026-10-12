@@ -97,6 +97,18 @@ class TestDGIIClient(FrappeTestCase):
 		self.assertEqual(result["estado"], "Aceptado")
 		self.assertEqual(result["fecharecepcion"], "2026-10-10T15:24:53Z")
 
+	def test_query_estado_retries_once_on_401(self):
+		unauthorized = make_response(status_code=401, json_data={})
+		ok = make_response(json_data={"trackId": "t1", "estado": "Aceptado"})
+		with patch.object(dgii_client.requests, "get", side_effect=[unauthorized, ok]) as mock_get, \
+				patch.object(dgii_client, "_clear_token") as mock_clear, \
+				patch.object(dgii_client, "get_token", return_value="fresh"):
+			result = dgii_client.query_estado("t1", "1")
+
+		self.assertEqual(mock_get.call_count, 2)
+		mock_clear.assert_called_once_with("1")
+		self.assertEqual(result["estado"], "Aceptado")
+
 	def test_collect_mensaje_combines_singular_and_plural(self):
 		self.assertEqual(dgii_client._collect_mensaje({"error": "E1", "mensaje": "M1"}), "E1\nM1")
 		self.assertEqual(

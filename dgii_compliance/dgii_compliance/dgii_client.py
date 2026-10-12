@@ -222,35 +222,43 @@ def send_rfce(xml_content, rnc, encf, token=None):
 	return _parse_response(response)
 
 
-def query_estado(track_id, rnc):
-	"""Queries the validation status of a previously submitted e-CF."""
+def _get_with_auth_retry(url, params, rnc):
+	"""GET with a bearer token, retrying once with a fresh token on 401."""
 	token = get_token(rnc)
-	url = f"{ecf_base_url()}/consultaresultado/api/consultas/estado"
 	response = requests.get(
 		url,
-		params={"trackid": track_id},
+		params=params,
 		headers={"Authorization": f"bearer {token}"},
 		timeout=REQUEST_TIMEOUT,
 	)
+	if response.status_code == 401:
+		_clear_token(rnc)
+		token = get_token(rnc)
+		response = requests.get(
+			url,
+			params=params,
+			headers={"Authorization": f"bearer {token}"},
+			timeout=REQUEST_TIMEOUT,
+		)
 	_raise_for_status(response)
+	return response
+
+
+def query_estado(track_id, rnc):
+	"""Queries the validation status of a previously submitted e-CF."""
+	url = f"{ecf_base_url()}/consultaresultado/api/consultas/estado"
+	response = _get_with_auth_retry(url, {"trackid": track_id}, rnc)
 	return _parse_response(response)
 
 
 def query_rfce_estado(rnc, encf, codigo_seguridad):
 	"""Queries the status of a previously submitted RFCE (Resumen < RD$250k)."""
-	token = get_token(rnc)
 	url = f"{fc_base_url()}/consultarfce/api/Consultas/Consulta"
-	response = requests.get(
+	response = _get_with_auth_retry(
 		url,
-		params={
-			"RNC_Emisor": rnc,
-			"ENCF": encf,
-			"Cod_Seguridad_eCF": codigo_seguridad,
-		},
-		headers={"Authorization": f"bearer {token}"},
-		timeout=REQUEST_TIMEOUT,
+		{"RNC_Emisor": rnc, "ENCF": encf, "Cod_Seguridad_eCF": codigo_seguridad},
+		rnc,
 	)
-	_raise_for_status(response)
 	return _parse_response(response)
 
 
