@@ -22,6 +22,9 @@ from dgii_compliance.dgii_compliance.doctype.ecf.signer import (
 	sign_ecf,
 	sign_xml,
 )
+from dgii_compliance.dgii_compliance.doctype.ecf_aprobacion_comercial.acecf import (
+	extract_rnc_and_encf as extract_acecf_rnc_and_encf,
+)
 
 DEFAULT_ENVIRONMENT = "testecf"
 
@@ -51,6 +54,15 @@ ESTADO_STATUS_MAP = {
 	"rechazado": "rejected",
 	"en proceso": "sent",
 	"recibido": "sent",
+}
+
+# Maps the Aprobación Comercial response (estado 1/2, or "OK"/"Error") to status
+ACECF_STATUS_MAP = {
+	"1": "ok",
+	"2": "error",
+	"ok": "ok",
+	"error": "error",
+	"incorrecto": "error",
 }
 
 
@@ -222,6 +234,30 @@ def send_rfce(xml_content, rnc, encf, token=None):
 	return _parse_response(response)
 
 
+def send_acecf(xml_content, rnc, encf, token=None):
+	"""Sends a signed ACECF (Aprobación/Rechazo Comercial) to DGII.
+
+	Retries once with a fresh token if DGII rejects the session (401).
+	"""
+	if isinstance(xml_content, str):
+		xml_content = xml_content.encode()
+
+	if token is None:
+		token = get_token(rnc)
+
+	url = f"{ecf_base_url()}/aprobacioncomercial/api/aprobacioncomercial"
+	filename = f"{rnc}{encf}.xml"
+
+	response = _post_ecf(url, xml_content, filename, token)
+	if response.status_code == 401:
+		_clear_token(rnc)
+		token = get_token(rnc)
+		response = _post_ecf(url, xml_content, filename, token)
+
+	_raise_for_status(response)
+	return _parse_response(response)
+
+
 def _get_with_auth_retry(url, params, rnc):
 	"""GET with a bearer token, retrying once with a fresh token on 401."""
 	token = get_token(rnc)
@@ -266,6 +302,12 @@ def map_estado_to_status(estado):
 	if not estado:
 		return "sent"
 	return ESTADO_STATUS_MAP.get(str(estado).strip().lower(), "sent")
+
+
+def map_acecf_estado_to_status(estado):
+	if not estado:
+		return "sent"
+	return ACECF_STATUS_MAP.get(str(estado).strip().lower(), "sent")
 
 
 def _extract_rnc_and_encf(xml_content):
@@ -460,3 +502,41 @@ def download_rfce_xml(ecf_name):
 	)
 	rnc, encf = _extract_rnc_and_encf(doc.xml)
 	_send_download(f"{rnc}{encf}.xml", rfce_body)
+
+
+@frappe.whitelist()
+def send_acecf_to_dgii(acecf_name):
+	"""Sends the stored signed ACECF and records DGII's response."""
+	doc = frappe.get_doc("eCF Aprobacion Comercial", acecf_name)
+	if not doc.xml:
+		frappe.throw(_("La aprobación comercial no tiene XML firmado para enviar."))
+
+	rnc, encf = extract_acecf_rnc_and_encf(doc.xml)
+	if not rnc or not encf:
+		frappe.throw(_("No se pudo obtener el RNC o el e-NCF del XML."))
+
+	result = send_acecf(doc.xml, rnc, encf)
+
+	doc.respuesta_estado = result.get("estado")
+	doc.respuesta_codigo = result.get("codigo")
+	doc.respuesta_mensaje = _collect_mensaje(result)
+	doc.sent_at = now_datetime()
+	doc.status = map_acecf_estado_to_status(doc.respuesta_estado) if doc.respuesta_estado else "sent"
+	doc.save(ignore_permissions=True)
+
+	return {
+		"status": doc.status,
+		"estado": doc.respuesta_estado,
+		"codigo": doc.respuesta_codigo,
+		"mensaje": doc.respuesta_mensaje,
+	}
+
+
+@frappe.whitelist()
+def download_acecf_xml(acecf_name):
+	"""Downloads the stored, signed ACECF XML."""
+	doc = frappe.get_doc("eCF Aprobacion Comercial", acecf_name)
+	if not doc.xml:
+		frappe.throw(_("La aprobación comercial no tiene XML firmado."))
+	rnc, encf = extract_acecf_rnc_and_encf(doc.xml)
+	_send_download(f"ACECF{rnc}{encf}.xml", doc.xml)

@@ -143,6 +143,36 @@ class TestDGIIClient(FrappeTestCase):
 		self.assertEqual(mock_post.call_args[1]["files"]["xml"][0], "101010101E320000000001.xml")
 		self.assertEqual(result["estado"], "Aceptado")
 
+	def test_map_acecf_estado_to_status(self):
+		self.assertEqual(dgii_client.map_acecf_estado_to_status("1"), "ok")
+		self.assertEqual(dgii_client.map_acecf_estado_to_status("OK"), "ok")
+		self.assertEqual(dgii_client.map_acecf_estado_to_status("2"), "error")
+		self.assertEqual(dgii_client.map_acecf_estado_to_status("Error"), "error")
+		self.assertEqual(dgii_client.map_acecf_estado_to_status(None), "sent")
+
+	def test_send_acecf_uses_aprobacioncomercial_endpoint(self):
+		response = make_response(json_data={"mensaje": "OK", "estado": "1", "codigo": "1"})
+		with patch.object(dgii_client.requests, "post", return_value=response) as mock_post:
+			result = dgii_client.send_acecf("<ACECF/>", "133424959", "E310000000008", token="tok")
+
+		url = mock_post.call_args[0][0]
+		self.assertIn("/aprobacioncomercial/api/aprobacioncomercial", url)
+		self.assertEqual(mock_post.call_args[1]["files"]["xml"][0], "133424959E310000000008.xml")
+		self.assertEqual(mock_post.call_args[1]["headers"]["Authorization"], "bearer tok")
+		self.assertEqual(result["estado"], "1")
+
+	def test_send_acecf_retries_once_on_401(self):
+		unauthorized = make_response(status_code=401, json_data={})
+		ok = make_response(json_data={"estado": "1", "codigo": "1"})
+		with patch.object(dgii_client.requests, "post", side_effect=[unauthorized, ok]) as mock_post, \
+				patch.object(dgii_client, "_clear_token") as mock_clear, \
+				patch.object(dgii_client, "get_token", return_value="fresh"):
+			result = dgii_client.send_acecf("<ACECF/>", "1", "E31", token="stale")
+
+		self.assertEqual(mock_post.call_count, 2)
+		mock_clear.assert_called_once_with("1")
+		self.assertEqual(result["estado"], "1")
+
 	def test_guard_reference_noop_without_reference(self):
 		from lxml import etree
 
