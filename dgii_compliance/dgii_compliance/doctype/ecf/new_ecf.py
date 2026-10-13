@@ -28,12 +28,14 @@ __all__ = [
 
 
 def validate_xml_schema(xml_object, eNCF_type, raise_on_error=False):
-	"""Validates an XML document against the e-CF XSD for its type.
+	"""Validates an XML document against the XSD for its type.
 
-	Returns True when valid. When invalid, returns False, or raises with the
-	schema errors if ``raise_on_error`` is set.
+	``eNCF_type`` is an e-CF type (``E31``..``E47``) or ``ACECF`` (Aprobación
+	Comercial). Returns True when valid. When invalid, returns False, or raises
+	with the schema errors if ``raise_on_error`` is set.
 	"""
 	xsd_name_map = {
+		"ACECF": "ACECF v.1.0.xsd",
 		"E31": "e-CF 31 v.1.0.xsd",
 		"E32": "e-CF 32 v.1.0.xsd",
 		"E33": "e-CF 33 v.1.0.xsd",
@@ -54,7 +56,7 @@ def validate_xml_schema(xml_object, eNCF_type, raise_on_error=False):
 
 	errors = " | ".join(f"Línea {e.line}: {e.message}" for e in schema.error_log) or "desconocido"
 	if raise_on_error:
-		frappe.throw(f"El XML del e-CF {eNCF_type} no cumple el esquema: {errors}")
+		frappe.throw(f"El XML {eNCF_type} no cumple el esquema: {errors}")
 	return False
 
 
