@@ -7,7 +7,13 @@ app_license = "gpl-3.0"
 fixtures = [
 	{"doctype": "Custom Field", "filters": { "module": "DGII Compliance" }},
 	{'doctype': 'Property Setter', 'filters': {'module': 'DGII Compliance'}},
+	{'doctype': 'Print Format', 'filters': {'module': 'DGII Compliance'}},
 ]
+jinja = {
+	"methods": [
+		"dgii_compliance.dgii_compliance.ri.get_ri_data",
+	],
+}
 doc_events = {
 	"Sales Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
 	"POS Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
