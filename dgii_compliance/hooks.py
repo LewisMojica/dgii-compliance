@@ -14,6 +14,9 @@ jinja = {
 		"dgii_compliance.dgii_compliance.ri.get_ri_data",
 	],
 }
+page_renderer = [
+	"dgii_compliance.dgii_compliance.receptor.page_renderer.ReceptorPageRenderer",
+]
 doc_events = {
 	"Sales Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
 	"POS Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
