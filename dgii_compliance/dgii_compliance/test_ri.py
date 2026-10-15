@@ -51,3 +51,9 @@ class TestRI(unittest.TestCase):
 		self.assertEqual(ri._amount("1505"), "1,505.00")
 		self.assertEqual(ri._amount(None), None)
 		self.assertEqual(ri._amount("0.00"), "0.00")
+
+	def test_uom_words(self):
+		self.assertEqual(ri._uom("23"), "Libra")
+		self.assertEqual(ri._uom("43"), "Unidad")
+		self.assertEqual(ri._uom("999"), "999")
+		self.assertIsNone(ri._uom(None))

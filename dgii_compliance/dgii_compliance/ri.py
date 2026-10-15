@@ -47,6 +47,82 @@ INDICADOR_DESC = {
 	"4": "Exento",
 }
 
+# DGII "Tabla IV. Codificación Unidad de Medida" (codes 1..62).
+UNIDAD_MEDIDA = {
+	1: "Barril",
+	2: "Bolsa",
+	3: "Bote",
+	4: "Bultos",
+	5: "Botella",
+	6: "Caja/Cajón",
+	7: "Cajetilla",
+	8: "Centímetro",
+	9: "Cilindro",
+	10: "Conjunto",
+	11: "Contenedor",
+	12: "Día",
+	13: "Docena",
+	14: "Fardo",
+	15: "Galones",
+	16: "Grado",
+	17: "Gramo",
+	18: "Granel",
+	19: "Hora",
+	20: "Huacal",
+	21: "Kilogramo",
+	22: "Kilovatio Hora",
+	23: "Libra",
+	24: "Litro",
+	25: "Lote",
+	26: "Metro",
+	27: "Metro Cuadrado",
+	28: "Metro Cúbico",
+	29: "Millones de Unidades Térmicas",
+	30: "Minuto",
+	31: "Paquete",
+	32: "Par",
+	33: "Pie",
+	34: "Pieza",
+	35: "Rollo",
+	36: "Sobre",
+	37: "Segundo",
+	38: "Tanque",
+	39: "Tonelada",
+	40: "Tubo",
+	41: "Yarda",
+	42: "Yarda cuadrada",
+	43: "Unidad",
+	44: "Elemento",
+	45: "Millar",
+	46: "Saco",
+	47: "Lata",
+	48: "Display",
+	49: "Bidón",
+	50: "Ración",
+	51: "Quintal",
+	52: "Gross Register Tonnage (Toneladas de registro bruto)",
+	53: "Pie cuadrado",
+	54: "Pasajero",
+	55: "Pulgadas",
+	56: "Parqueo barcos en muelle",
+	57: "Bandeja",
+	58: "Hectárea",
+	59: "Mililitro",
+	60: "Miligramo",
+	61: "Onzas",
+	62: "Onzas Troy",
+}
+
+
+def _uom(unidad):
+	"""Returns the DGII unit-of-measure code as its word (Tabla IV)."""
+	if not unidad:
+		return None
+	try:
+		return UNIDAD_MEDIDA.get(int(unidad), unidad)
+	except (TypeError, ValueError):
+		return unidad
+
 
 def _text(root, path):
 	value = root.findtext(path)
@@ -66,6 +142,7 @@ def _items(root):
 	items = []
 	for node in root.findall("DetallesItems/Item"):
 		indicador = _text(node, "IndicadorFacturacion")
+		unidad = _text(node, "UnidadMedida")
 		items.append(
 			{
 				"linea": _text(node, "NumeroLinea"),
@@ -73,7 +150,8 @@ def _items(root):
 				"indicador_desc": INDICADOR_DESC.get(indicador, ""),
 				"exento": indicador == "4",
 				"descripcion": _text(node, "NombreItem"),
-				"unidad": _text(node, "UnidadMedida"),
+				"unidad": unidad,
+				"unidad_desc": _uom(unidad),
 				"cantidad": _text(node, "CantidadItem"),
 				"precio": _amount(_text(node, "PrecioUnitarioItem")),
 				"descuento": _amount(_text(node, "DescuentoMonto")),
