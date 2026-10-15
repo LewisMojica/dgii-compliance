@@ -26,7 +26,7 @@ HEADER = [
 ROW = [
 	"1.0",
 	"131880681",
-	"E310000000008",
+	"E319999999901",
 	"01-04-2020",
 	1505,
 	"133424959",
@@ -38,7 +38,7 @@ ROW = [
 ROW_REJECTED = [
 	"1.0",
 	"131880681",
-	"E330000000001",
+	"E339999999901",
 	"02-04-2020",
 	400000,
 	"133424959",
@@ -67,7 +67,7 @@ class TestAcecfParser(unittest.TestCase):
 
 		first = cases[0]
 		self.assertEqual(first["RNCEmisor"], "131880681")
-		self.assertEqual(first["eNCF"], "E310000000008")
+		self.assertEqual(first["eNCF"], "E319999999901")
 		self.assertEqual(first["MontoTotal"], 1505)
 		self.assertEqual(first["Estado"], 1)
 		self.assertNotIn("DetalleMotivoRechazo", first)  # empty cells are dropped
@@ -98,7 +98,7 @@ class TestAcecfImporter(FrappeTestCase):
 	def test_build_doc_maps_columns(self):
 		doc = acecf.build_doc(self._case())
 		self.assertEqual(doc.rnc_emisor, "131880681")
-		self.assertEqual(doc.encf, "E310000000008")
+		self.assertEqual(doc.encf, "E319999999901")
 		self.assertEqual(doc.fecha_emision, "01-04-2020")
 		self.assertEqual(doc.monto_total, 1505)
 		self.assertEqual(doc.rnc_comprador, "133424959")
