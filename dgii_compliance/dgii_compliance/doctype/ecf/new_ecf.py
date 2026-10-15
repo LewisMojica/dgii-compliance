@@ -36,6 +36,7 @@ def validate_xml_schema(xml_object, eNCF_type, raise_on_error=False):
 	"""
 	xsd_name_map = {
 		"ACECF": "ACECF v.1.0.xsd",
+		"ARECF": "ARECF v1.0.xsd",
 		"E31": "e-CF 31 v.1.0.xsd",
 		"E32": "e-CF 32 v.1.0.xsd",
 		"E33": "e-CF 33 v.1.0.xsd",
