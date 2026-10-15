@@ -52,7 +52,7 @@
    "fieldname": "ncf_type",
    "fieldtype": "Select",
    "label": "Tipo de NCF",
-   "options": "B01\nB02\nB14\nB15\nE31\nE32"
+   "options": "B01\nB02\nB14\nB15\nE31\nE32\nE33\nE34\nE41\nE43\nE44\nE45\nE46\nE47"
   }
  ],
  "grid_page_length": 50,
