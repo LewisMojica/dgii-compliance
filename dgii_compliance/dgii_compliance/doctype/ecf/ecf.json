@@ -4,32 +4,75 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "direction",
   "ref_doctype",
   "ref_name",
+  "rnc_emisor",
+  "rnc_comprador",
+  "encf",
   "status",
   "track_id",
   "estado",
   "sent_at",
+  "received_at",
   "fecha_recepcion",
   "mensaje",
+  "arecf_xml",
   "xml"
  ],
  "fields": [
+  {
+   "default": "Emitido",
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Direction",
+   "options": "Emitido\nRecibido",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rnc_emisor",
+   "fieldtype": "Data",
+   "label": "RNC Emisor"
+  },
+  {
+   "fieldname": "rnc_comprador",
+   "fieldtype": "Data",
+   "label": "RNC Comprador"
+  },
+  {
+   "fieldname": "encf",
+   "fieldtype": "Data",
+   "label": "e-NCF"
+  },
+  {
+   "fieldname": "received_at",
+   "fieldtype": "Datetime",
+   "label": "Received At",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "arecf_xml",
+   "fieldtype": "Long Text",
+   "ignore_xss_filter": 1,
+   "label": "ARECF (Acuse de Recibo)",
+   "read_only": 1
+  },
   {
    "fieldname": "ref_doctype",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Invoice Type",
-   "options": "DocType",
-   "reqd": 1
+   "options": "DocType"
   },
   {
    "fieldname": "ref_name",
    "fieldtype": "Dynamic Link",
    "in_list_view": 1,
    "label": "Invoice name",
-   "options": "ref_doctype",
-   "reqd": 1
+   "options": "ref_doctype"
   },
   {
    "default": "pending",

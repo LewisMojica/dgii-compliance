@@ -3,7 +3,7 @@
 
 frappe.ui.form.on("eCF", {
 	refresh(frm) {
-		if (frm.is_new() || !frm.doc.xml) {
+		if (frm.is_new() || !frm.doc.xml || (frm.doc.direction && frm.doc.direction !== "Emitido")) {
 			return;
 		}
 
