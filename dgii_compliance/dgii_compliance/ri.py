@@ -234,6 +234,10 @@ def get_ri_data(doc):
 	tipo = _text(root, "Encabezado/IdDoc/TipoeCF")
 	codigo_modificacion = _text(root, ".//InformacionReferencia/CodigoModificacion")
 
+	# The emisor's legal name must be the company's registered name. The e-CF may
+	# carry a test-set override, so prefer the invoice's company.
+	company_name = doc.get("company") if hasattr(doc, "get") else None
+
 	return {
 		"tipo": tipo,
 		"tipo_desc": TIPOS.get(tipo, tipo),
@@ -244,8 +248,8 @@ def get_ri_data(doc):
 		"codigo_modificacion": codigo_modificacion,
 		"codigo_modificacion_desc": CODIGOS_MODIFICACION.get(codigo_modificacion or "", ""),
 		"rnc_emisor": _text(root, "Encabezado/Emisor/RNCEmisor"),
-		"razon_social_emisor": _text(root, "Encabezado/Emisor/RazonSocialEmisor"),
-		"nombre_comercial": _text(root, "Encabezado/Emisor/NombreComercial"),
+		"razon_social_emisor": company_name or _text(root, "Encabezado/Emisor/RazonSocialEmisor"),
+		"nombre_comercial": None,
 		"sucursal": _text(root, "Encabezado/Emisor/Sucursal"),
 		"direccion_emisor": _text(root, "Encabezado/Emisor/DireccionEmisor"),
 		"municipio": _text(root, "Encabezado/Emisor/Municipio"),
