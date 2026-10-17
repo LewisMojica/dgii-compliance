@@ -235,9 +235,12 @@ def _qr_url(root, env):
 
 	rnc_comprador = _text(root, "Encabezado/Comprador/RNCComprador") or ""
 	fecha_emision = _text(root, "Encabezado/Emisor/FechaEmision") or ""
+	# E43/E47 have no buyer. DGII rejects the query when rnccomprador is sent
+	# empty, so only include it when present.
+	comprador_param = f"&rnccomprador={rnc_comprador}" if rnc_comprador else ""
 	return (
 		f"https://ecf.dgii.gov.do/{env}/consultatimbre"
-		f"?rncemisor={rnc_emisor}&rnccomprador={rnc_comprador}&encf={quote(encf or '')}"
+		f"?rncemisor={rnc_emisor}{comprador_param}&encf={quote(encf or '')}"
 		f"&fechaemision={quote(fecha_emision, safe=':')}&montototal={monto}"
 		f"&fechafirma={quote(fecha_firma or '', safe=':')}&codigoseguridad={quote(codigo, safe='')}"
 	)

@@ -47,6 +47,15 @@ class TestRI(unittest.TestCase):
 		url = ri._qr_url(_ecf("32", "413785.30"), "certecf")
 		self.assertIn("/consultatimbre?", url)
 
+	def test_qr_omits_empty_comprador(self):
+		# E43/E47 have no buyer; DGII rejects rnccomprador when sent empty.
+		root = _ecf("43", "350.00")
+		encabezado = root.find("Encabezado")
+		encabezado.remove(root.find("Encabezado/Comprador"))
+		url = ri._qr_url(root, "certecf")
+		self.assertNotIn("rnccomprador", url)
+		self.assertIn("encf=E430000004001", url)
+
 	def test_amount_formatting(self):
 		self.assertEqual(ri._amount("1505"), "1,505.00")
 		self.assertEqual(ri._amount(None), None)
