@@ -57,3 +57,8 @@ class TestRI(unittest.TestCase):
 		self.assertEqual(ri._uom("43"), "Unidad")
 		self.assertEqual(ri._uom("999"), "999")
 		self.assertIsNone(ri._uom(None))
+
+	def test_municipio_provincia_words(self):
+		self.assertEqual(ri._municipio("320300"), "Santo Domingo Norte")
+		self.assertEqual(ri._provincia("320000"), "Santo Domingo")
+		self.assertEqual(ri._municipio("999999"), "999999")

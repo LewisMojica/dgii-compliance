@@ -124,6 +124,29 @@ def _uom(unidad):
 		return unidad
 
 
+# DGII "Tabla III. Codificación Provincias y Municipios" (subset used here).
+PROVINCIAS = {
+	"010000": "Distrito Nacional",
+	"320000": "Santo Domingo",
+}
+
+MUNICIPIOS = {
+	"010100": "Santo Domingo de Guzmán",
+	"320100": "Santo Domingo Este",
+	"320200": "Santo Domingo Oeste",
+	"320300": "Santo Domingo Norte",
+	"320400": "Boca Chica",
+}
+
+
+def _provincia(value):
+	return PROVINCIAS.get(value, value)
+
+
+def _municipio(value):
+	return MUNICIPIOS.get(value, value)
+
+
 def _text(root, path):
 	value = root.findtext(path)
 	return value.strip() if value and value.strip() else None
@@ -253,7 +276,9 @@ def get_ri_data(doc):
 		"sucursal": _text(root, "Encabezado/Emisor/Sucursal"),
 		"direccion_emisor": _text(root, "Encabezado/Emisor/DireccionEmisor"),
 		"municipio": _text(root, "Encabezado/Emisor/Municipio"),
+		"municipio_desc": _municipio(_text(root, "Encabezado/Emisor/Municipio")),
 		"provincia": _text(root, "Encabezado/Emisor/Provincia"),
+		"provincia_desc": _provincia(_text(root, "Encabezado/Emisor/Provincia")),
 		"fecha_emision": _text(root, "Encabezado/Emisor/FechaEmision"),
 		"rnc_comprador": _text(root, "Encabezado/Comprador/RNCComprador"),
 		"razon_social_comprador": _text(root, "Encabezado/Comprador/RazonSocialComprador"),
