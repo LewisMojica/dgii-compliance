@@ -1,0 +1,69 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"HyXiGKVw8N\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">DGII Compliance</span>\",\"col\":12}},{\"id\":\"9D30cu1eNU\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Lista de secuencias NCF\",\"col\":3}},{\"id\":\"mIvUpTfnjV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Crear secuencia NCF\",\"col\":3}},{\"id\":\"bmCHp3kfEf\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Settings\",\"col\":3}},{\"id\":\"ShortcutECFRecibidos\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"e-CF Recibidos\",\"col\":3}},{\"id\":\"ShortcutAprobComercial\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Aprobaciones Comerciales\",\"col\":3}}]",
+ "creation": "2025-08-30 16:53:27.357548",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "income",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "DGII Compliance",
+ "links": [],
+ "modified": "2026-10-22 03:25:00.000000",
+ "modified_by": "Administrator",
+ "module": "DGII Compliance",
+ "name": "DGII Compliance",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 23.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Lista de secuencias NCF",
+   "link_to": "Secuencia NCF",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Settings",
+   "link_to": "DGII Compliance Settings",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "New",
+   "label": "Crear secuencia NCF",
+   "link_to": "Secuencia NCF",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "e-CF Recibidos",
+   "link_to": "eCF",
+   "stats_filter": "[[\"eCF\",\"direction\",\"=\",\"Recibido\"]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Aprobaciones Comerciales",
+   "link_to": "eCF Aprobacion Comercial",
+   "stats_filter": "[[\"eCF Aprobacion Comercial\",\"direction\",\"=\",\"Recibido\"]]",
+   "type": "DocType"
+  }
+ ],
+ "title": "DGII Compliance"
+}
