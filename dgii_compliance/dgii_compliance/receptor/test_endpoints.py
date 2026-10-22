@@ -69,7 +69,7 @@ class TestProcessRecepcion(FrappeTestCase):
 		root.find(".//RNCEmisor").text = "999999999"
 		with (
 			patch.object(endpoints, "get_xml_schema_errors", return_value=[]),
-			patch.object(endpoints, "_conf_flag", return_value=True),
+			patch.object(endpoints, "_soft_signature_enabled", return_value=True),
 			patch.object(endpoints.arecf, "build_signed", return_value="<ARECF/>"),
 		):
 			result = endpoints.process_recepcion(etree.tostring(root))

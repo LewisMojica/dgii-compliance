@@ -4,13 +4,15 @@
  "creation": "2025-08-30 18:45:38.929255",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": [
-  "facturaci\u00f3n_section",
-  "invoicing_method",
-  "dgii_environment",
-  "actions_section",
-  "sync_rnc_data"
- ],
+  "field_order": [
+   "facturaci\u00f3n_section",
+   "invoicing_method",
+   "dgii_environment",
+   "receptor_rnc",
+   "allow_unverified_received_signatures",
+   "actions_section",
+   "sync_rnc_data"
+  ],
  "fields": [
   {
    "fieldname": "actions_section",
@@ -45,13 +47,27 @@
    "label": "Ambiente DGII",
    "options": "testecf\ncertecf\necf",
    "reqd": 1
+  },
+  {
+   "description": "RNC que se usa como RNCComprador en el ARECF. Si se deja vac\u00edo se usa el RNCComprador del e-CF recibido.",
+   "fieldname": "receptor_rnc",
+   "fieldtype": "Data",
+   "label": "RNC del Receptor (ARECF)"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.dgii_environment != \"ecf\"",
+   "description": "Solo aplica en testecf/certecf. Permite aceptar e-CF/ACECF cuya firma no pueda verificarse; el detalle queda en el log del receptor.",
+   "fieldname": "allow_unverified_received_signatures",
+   "fieldtype": "Check",
+   "label": "Permitir firmas no verificadas (solo pruebas)"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-11-23 16:06:17.951675",
+  "modified": "2026-10-22 02:45:00.000000",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "DGII Compliance Settings",

@@ -10,23 +10,17 @@ Both receive the XML as a ``multipart/form-data`` field named ``xml``.
 Authentication (bearer) is optional and not implemented yet.
 """
 
-import base64
 import json
 import os
 import re
 
 import frappe
-from cryptography import x509
-from cryptography.hazmat.primitives import serialization
 from frappe.utils import cint, now, now_datetime
 from lxml import etree
-from signxml import XMLVerifier
 
-from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import (
-	get_xml_schema_errors,
-	validate_xml_schema,
-)
+from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import get_xml_schema_errors
 from dgii_compliance.dgii_compliance.receptor import arecf
+from dgii_compliance.dgii_compliance.receptor.xmldsig import verify_signature
 
 DS_NS = "{http://www.w3.org/2000/09/xmldsig#}"
 XML_HEADERS = {"Content-Type": "text/xml; charset=utf-8"}
@@ -111,12 +105,37 @@ def _request_info():
 	}
 
 
-def _conf_flag(name):
-	value = (frappe.conf or {}).get(name)
-	return bool(cint(value)) if value is not None else False
+SETTINGS_DOCTYPE = "DGII Compliance Settings"
+
+
+def _setting(fieldname):
+	try:
+		return frappe.db.get_single_value(SETTINGS_DOCTYPE, fieldname)
+	except Exception:
+		return None
+
+
+def _dgii_environment():
+	return (_setting("dgii_environment") or "").strip()
+
+
+def _soft_signature_enabled():
+	"""Soft signature acceptance is only allowed in DGII test environments."""
+	if _dgii_environment() not in ("testecf", "certecf"):
+		return False
+
+	setting = _setting("allow_unverified_received_signatures")
+	if setting is not None:
+		return bool(cint(setting))
+
+	# Backward-compatible fallback for sites that have not migrated the setting yet.
+	return bool(cint((frappe.conf or {}).get("dgii_receptor_soft_signature")))
 
 
 def _receptor_rnc():
+	value = (_setting("receptor_rnc") or "").strip()
+	if value:
+		return value
 	return ((frappe.conf or {}).get("dgii_receptor_rnc") or "").strip()
 
 
@@ -133,18 +152,11 @@ def _read_uploaded_xml():
 def _verify_signature_detail(root):
 	"""Verifies the enveloped signature using the embedded X509 certificate.
 
-	Returns ``(ok, error)``. The error text is only used for diagnostics.
+	Returns ``(ok, method, error)``. ``method`` is ``signxml`` for correctly
+	signed documents and ``c14n-exclusive`` for DGII's certification quirk.
 	"""
-	cert_b64 = root.findtext(f".//{DS_NS}X509Certificate")
-	if not cert_b64:
-		return False, "No se encontró X509Certificate en la firma"
-	try:
-		cert = x509.load_der_x509_certificate(base64.b64decode(cert_b64))
-		pem = cert.public_bytes(serialization.Encoding.PEM)
-		XMLVerifier().verify(root, x509_cert=pem)
-		return True, None
-	except Exception as exc:
-		return False, f"{type(exc).__name__}: {exc}"
+	result = verify_signature(root)
+	return result.ok, result.method, result.error
 
 
 def _verify_signature(root):
@@ -191,6 +203,7 @@ def process_recepcion(raw):
 	tipo = encf = rnc_emisor = rnc_comprador = ""
 	schema_errors = []
 	signature_ok = False
+	signature_method = None
 	signature_error = "No se procesó la firma"
 
 	try:
@@ -213,6 +226,7 @@ def process_recepcion(raw):
 			"parse_error": parse_error,
 			"schema_errors": ["XML no parseable"],
 			"signature_ok": False,
+			"signature_method": None,
 			"signature_error": signature_error,
 			"soft_signature": False,
 			"request": info,
@@ -228,7 +242,7 @@ def process_recepcion(raw):
 			schema_errors = get_xml_schema_errors(root, f"E{tipo}")
 		except Exception as exc:
 			schema_errors = [f"{type(exc).__name__}: {exc}"]
-		signature_ok, signature_error = _verify_signature_detail(root)
+		signature_ok, signature_method, signature_error = _verify_signature_detail(root)
 	else:
 		schema_errors = ["Faltan campos obligatorios del e-CF"]
 		signature_error = "No se verificó la firma: faltan campos obligatorios"
@@ -243,10 +257,11 @@ def process_recepcion(raw):
 	elif schema_errors:
 		estado, motivo = 1, arecf.MOTIVO_ERROR_ESPECIFICACION
 	elif not signature_ok:
-		if _conf_flag("dgii_receptor_soft_signature") and _has_signature(root):
+		if _soft_signature_enabled() and _has_signature(root):
+			signature_method = "soft"
 			_log(
 				"Recepción: firma no verificable para %s/%s, aceptada por "
-				"dgii_receptor_soft_signature (%s)",
+				"allow_unverified_received_signatures (%s)",
 				rnc_emisor,
 				encf,
 				signature_error,
@@ -281,6 +296,7 @@ def process_recepcion(raw):
 		"parse_error": parse_error,
 		"schema_errors": schema_errors,
 		"signature_ok": signature_ok,
+		"signature_method": signature_method,
 		"signature_error": signature_error,
 		"soft_signature": estado == 0 and not signature_ok and _has_signature(root),
 		"request": info,
@@ -290,7 +306,8 @@ def process_recepcion(raw):
 	_save_debug("result", encf, result)
 	_log(
 		"Recepción ip=%s tipo=%s encf=%s emisor=%s comprador=%s receptor=%s "
-		"estado=%s motivo=%s schema=%s firma=%s error_firma=%s raw=%s arecf=%s",
+		"estado=%s motivo=%s schema=%s firma=%s metodo_firma=%s error_firma=%s "
+		"raw=%s arecf=%s",
 		info.get("remote_addr"),
 		tipo,
 		encf,
@@ -301,6 +318,7 @@ def process_recepcion(raw):
 		motivo,
 		schema_errors or "ok",
 		"ok" if signature_ok else "error",
+		signature_method or "-",
 		signature_error,
 		raw_path,
 		arecf_path,
@@ -368,13 +386,99 @@ def handle_recepcion():
 	return (result["arecf"] or "").encode("utf-8"), 200, XML_HEADERS
 
 
+def _extract_aprobacion(root):
+	return {
+		"rnc_emisor": (root.findtext(".//RNCEmisor") or "").strip(),
+		"encf": (root.findtext(".//eNCF") or "").strip(),
+		"rnc_comprador": (root.findtext(".//RNCComprador") or "").strip(),
+		"estado_acecf": (root.findtext(".//Estado") or "").strip(),
+		"fecha_emision": (root.findtext(".//FechaEmision") or "").strip(),
+		"monto_total": (root.findtext(".//MontoTotal") or "").strip(),
+	}
+
+
+def process_aprobacion(raw):
+	"""Validates an incoming ACECF and returns the result for logging."""
+	info = _request_info()
+	fields = {
+		"rnc_emisor": "",
+		"encf": "",
+		"rnc_comprador": "",
+		"estado_acecf": "",
+		"fecha_emision": "",
+		"monto_total": "",
+	}
+	parse_error = None
+	schema_errors = []
+	signature_ok = False
+	signature_method = None
+	signature_error = "No se procesó la firma"
+	root = None
+
+	try:
+		root = etree.fromstring(raw)
+	except Exception as exc:
+		parse_error = f"{type(exc).__name__}: {exc}"
+		_log("Aprobación: XML no parseable (%s)", parse_error)
+	else:
+		fields = _extract_aprobacion(root)
+		try:
+			schema_errors = get_xml_schema_errors(root, "ACECF")
+		except Exception as exc:
+			schema_errors = [f"{type(exc).__name__}: {exc}"]
+		signature_ok, signature_method, signature_error = _verify_signature_detail(root)
+
+	soft_accepted = False
+	ok = not parse_error and not schema_errors and signature_ok
+	if not ok and not parse_error and not schema_errors and not signature_ok:
+		if _soft_signature_enabled() and root is not None and _has_signature(root):
+			ok = True
+			soft_accepted = True
+			signature_method = "soft"
+			_log(
+				"Aprobación: firma no verificable para %s/%s, aceptada por "
+				"allow_unverified_received_signatures (%s)",
+				fields["rnc_emisor"],
+				fields["encf"],
+				signature_error,
+			)
+
+	raw_path = _save_debug("acecf_request", fields["encf"], raw)
+	result = {
+		"ok": ok,
+		"fields": fields,
+		"parse_error": parse_error,
+		"schema_errors": schema_errors,
+		"signature_ok": signature_ok,
+		"signature_method": signature_method,
+		"signature_error": signature_error,
+		"soft_accepted": soft_accepted,
+		"request": info,
+		"raw_debug_path": raw_path,
+	}
+	result_path = _save_debug("acecf_result", fields["encf"], result)
+	_log(
+		"Aprobación ip=%s emisor=%s encf=%s comprador=%s estado_acecf=%s "
+		"schema=%s firma=%s metodo_firma=%s error_firma=%s ok=%s raw=%s result=%s",
+		info.get("remote_addr"),
+		fields["rnc_emisor"],
+		fields["encf"],
+		fields["rnc_comprador"],
+		fields["estado_acecf"],
+		schema_errors or "ok",
+		"ok" if signature_ok else "error",
+		signature_method or "-",
+		signature_error,
+		ok,
+		raw_path,
+		result_path,
+	)
+	return result
+
+
 def handle_aprobacion():
 	raw = _read_uploaded_xml()
-	ok = False
-	if raw:
-		try:
-			root = etree.fromstring(raw)
-			ok = validate_xml_schema(root, "ACECF") and _verify_signature(root)
-		except Exception:
-			ok = False
-	return b"", (200 if ok else 400), {}
+	if not raw:
+		return b"", 400, {}
+	result = process_aprobacion(raw)
+	return b"", (200 if result["ok"] else 400), {}
