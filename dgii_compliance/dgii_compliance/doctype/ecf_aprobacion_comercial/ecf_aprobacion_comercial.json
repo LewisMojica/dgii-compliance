@@ -5,6 +5,8 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "direction",
+  "received_at",
   "e_cf_referenciado_section",
   "rnc_emisor",
   "encf",
@@ -18,6 +20,8 @@
   "fecha_hora_aprobacion_comercial",
   "dgii_section",
   "status",
+  "verification_method",
+  "source_ip",
   "respuesta_estado",
   "respuesta_codigo",
   "sent_at",
@@ -111,7 +115,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "pending\nsent\nok\nerror",
+   "options": "pending\nsent\nok\nerror\nreceived\nrejected",
    "read_only": 1
   },
   {
@@ -148,12 +152,43 @@
    "ignore_xss_filter": 1,
    "label": "XML",
    "read_only": 1
+  },
+  {
+   "default": "Emitido",
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Dirección",
+   "options": "Emitido\nRecibido",
+   "reqd": 1
+  },
+  {
+   "fieldname": "received_at",
+   "fieldtype": "Datetime",
+   "label": "Received At",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "verification_method",
+   "fieldtype": "Data",
+   "label": "Método de Verificación",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_ip",
+   "fieldtype": "Data",
+   "label": "IP Origen",
+   "no_copy": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-12 00:00:00.000000",
+ "modified": "2026-10-22 03:15:00.000000",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "eCF Aprobacion Comercial",

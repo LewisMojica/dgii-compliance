@@ -4,6 +4,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import frappe
 from frappe.tests.utils import FrappeTestCase
 from lxml import etree
 
@@ -80,3 +81,19 @@ class TestAprobacionProcessing(FrappeTestCase):
 			result = endpoints.process_aprobacion(self._signed_acecf(tamper=True))
 		self.assertFalse(result["ok"])
 		self.assertFalse(result["signature_ok"])
+
+	def test_stores_received_acecf(self):
+		raw = self._signed_acecf()
+		result = endpoints.process_aprobacion(raw)
+		result["raw"] = raw
+		name = endpoints._store_aprobacion(result)
+		self.assertIsNotNone(name)
+
+		doc = frappe.get_doc("eCF Aprobacion Comercial", name)
+		self.assertEqual(doc.direction, "Recibido")
+		self.assertEqual(doc.encf, "E310000000008")
+		self.assertEqual(doc.rnc_emisor, "131880681")
+		self.assertEqual(doc.rnc_comprador, "133424959")
+		self.assertEqual(doc.status, "received")
+		self.assertEqual(doc.verification_method, "signxml")
+		self.assertIn("firma verificada", doc.respuesta_mensaje)

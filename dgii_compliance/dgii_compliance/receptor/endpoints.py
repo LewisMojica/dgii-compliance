@@ -15,7 +15,7 @@ import os
 import re
 
 import frappe
-from frappe.utils import cint, now, now_datetime
+from frappe.utils import cint, flt, now, now_datetime
 from lxml import etree
 
 from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import get_xml_schema_errors
@@ -95,8 +95,14 @@ def _request_info():
 	request = frappe.request
 	if not request:
 		return {}
+	forwarded_for = request.headers.get("X-Forwarded-For")
+	remote_addr = (
+		forwarded_for.split(",", 1)[0].strip()
+		if forwarded_for
+		else getattr(request, "remote_addr", None)
+	)
 	return {
-		"remote_addr": getattr(request, "remote_addr", None),
+		"remote_addr": remote_addr,
 		"method": getattr(request, "method", None),
 		"content_type": getattr(request, "content_type", None),
 		"content_length": getattr(request, "content_length", None),
@@ -394,6 +400,10 @@ def _extract_aprobacion(root):
 		"estado_acecf": (root.findtext(".//Estado") or "").strip(),
 		"fecha_emision": (root.findtext(".//FechaEmision") or "").strip(),
 		"monto_total": (root.findtext(".//MontoTotal") or "").strip(),
+		"detalle_motivo_rechazo": (root.findtext(".//DetalleMotivoRechazo") or "").strip(),
+		"fecha_hora_aprobacion_comercial": (
+			root.findtext(".//FechaHoraAprobacionComercial") or ""
+		).strip(),
 	}
 
 
@@ -407,6 +417,8 @@ def process_aprobacion(raw):
 		"estado_acecf": "",
 		"fecha_emision": "",
 		"monto_total": "",
+		"detalle_motivo_rechazo": "",
+		"fecha_hora_aprobacion_comercial": "",
 	}
 	parse_error = None
 	schema_errors = []
@@ -476,9 +488,85 @@ def process_aprobacion(raw):
 	return result
 
 
+def _store_aprobacion(result):
+	"""Stores the received ACECF in the eCF Aprobacion Comercial list."""
+	fields = result.get("fields") or {}
+	rnc_emisor = (fields.get("rnc_emisor") or "").strip()
+	encf = (fields.get("encf") or "").strip()
+	if not (rnc_emisor and encf):
+		return None
+
+	received_ecf = frappe.db.get_value(
+		"eCF", {"direction": "Recibido", "encf": encf}, "name"
+	)
+	existing = frappe.db.get_value(
+		"eCF Aprobacion Comercial",
+		{"direction": "Recibido", "rnc_emisor": rnc_emisor, "encf": encf},
+		"name",
+	)
+
+	if existing:
+		doc = frappe.get_doc("eCF Aprobacion Comercial", existing)
+	else:
+		doc = frappe.new_doc("eCF Aprobacion Comercial")
+		doc.direction = "Recibido"
+
+	doc.rnc_emisor = rnc_emisor
+	doc.encf = encf
+	doc.rnc_comprador = fields.get("rnc_comprador") or _receptor_rnc()
+	doc.fecha_emision = fields.get("fecha_emision") or None
+	doc.monto_total = flt(fields.get("monto_total") or 0)
+	doc.estado_acecf = fields.get("estado_acecf") or "1"
+	doc.detalle_motivo_rechazo = fields.get("detalle_motivo_rechazo") or None
+	doc.fecha_hora_aprobacion_comercial = (
+		fields.get("fecha_hora_aprobacion_comercial") or None
+	)
+	doc.received_ecf = received_ecf
+	doc.received_at = now()
+	doc.verification_method = result.get("signature_method")
+	doc.source_ip = (result.get("request") or {}).get("remote_addr")
+	doc.status = "received" if result.get("ok") else "rejected"
+
+	if result.get("parse_error"):
+		message = f"XML no parseable: {result['parse_error']}"
+	elif result.get("schema_errors"):
+		message = "Rechazado: " + " | ".join(result["schema_errors"])
+	elif result.get("signature_ok"):
+		message = f"Recibido; firma verificada ({result.get('signature_method')})"
+	elif result.get("soft_accepted"):
+		message = (
+			"Recibido en modo prueba; firma no verificada: "
+			f"{result.get('signature_error')}"
+		)
+	else:
+		message = f"Rechazado; firma no verificada: {result.get('signature_error')}"
+	doc.respuesta_mensaje = message
+
+	raw = result.get("raw")
+	if raw is None:
+		raw_path = result.get("raw_debug_path")
+		if raw_path and os.path.exists(raw_path):
+			raw = open(raw_path, "rb").read()
+	if isinstance(raw, bytes):
+		raw = raw.decode("utf-8", "replace")
+	doc.xml = raw
+
+	if existing:
+		doc.save(ignore_permissions=True)
+	else:
+		doc.insert(ignore_permissions=True)
+	return doc.name
+
+
 def handle_aprobacion():
 	raw = _read_uploaded_xml()
 	if not raw:
 		return b"", 400, {}
 	result = process_aprobacion(raw)
+	result["raw"] = raw
+	try:
+		_stored = _store_aprobacion(result)
+		_log("Aprobación: intento guardado en eCF Aprobacion Comercial %s", _stored)
+	except Exception as exc:
+		_log("Aprobación: no se pudo guardar el intento: %s", exc)
 	return b"", (200 if result["ok"] else 400), {}

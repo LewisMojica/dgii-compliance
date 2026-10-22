@@ -7,6 +7,28 @@ frappe.ui.form.on("eCF Aprobacion Comercial", {
 			return;
 		}
 
+		if (frm.doc.direction === "Recibido") {
+			[
+				"rnc_emisor",
+				"encf",
+				"fecha_emision",
+				"monto_total",
+				"rnc_comprador",
+				"estado_acecf",
+				"detalle_motivo_rechazo",
+				"fecha_hora_aprobacion_comercial",
+			].forEach((field) => frm.set_df_property(field, "read_only", 1));
+			if (frm.doc.xml) {
+				frm.add_custom_button(__("Descargar XML"), function () {
+					const url =
+						"/api/method/dgii_compliance.dgii_compliance.dgii_client.download_acecf_xml?acecf_name=" +
+						encodeURIComponent(frm.doc.name);
+					window.open(url);
+				});
+			}
+			return;
+		}
+
 		frm.add_custom_button(__("Generar y firmar"), function () {
 			frappe.call({
 				method: "dgii_compliance.dgii_compliance.doctype.ecf_aprobacion_comercial.acecf.generate_xml",
