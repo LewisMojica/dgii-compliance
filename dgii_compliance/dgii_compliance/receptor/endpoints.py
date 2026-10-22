@@ -11,19 +11,113 @@ Authentication (bearer) is optional and not implemented yet.
 """
 
 import base64
+import json
+import os
+import re
 
 import frappe
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
-from frappe.utils import now
+from frappe.utils import cint, now, now_datetime
 from lxml import etree
 from signxml import XMLVerifier
 
-from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import validate_xml_schema
+from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import (
+	get_xml_schema_errors,
+	validate_xml_schema,
+)
 from dgii_compliance.dgii_compliance.receptor import arecf
 
 DS_NS = "{http://www.w3.org/2000/09/xmldsig#}"
 XML_HEADERS = {"Content-Type": "text/xml; charset=utf-8"}
+LOGGER_NAME = "dgii_receptor"
+DEBUG_SUBDIR = "receptor_debug"
+MOTIVO_LABELS = {
+	arecf.MOTIVO_ERROR_ESPECIFICACION: "Error de especificación",
+	arecf.MOTIVO_ERROR_FIRMA: "Error de firma",
+	arecf.MOTIVO_ENVIO_DUPLICADO: "Envío duplicado",
+	arecf.MOTIVO_RNC_COMPRADOR: "RNC comprador inválido",
+}
+
+
+def _logger():
+	try:
+		return frappe.logger(LOGGER_NAME, allow_site=True)
+	except Exception:
+		return None
+
+
+def _log(message, *args):
+	try:
+		text = message % args if args else message
+	except Exception:
+		text = message
+	logger = _logger()
+	if logger:
+		try:
+			logger.info(message, *args)
+		except Exception:
+			pass
+	if getattr(frappe.flags, "in_test", False):
+		return
+	try:
+		path = frappe.get_site_path("logs", "dgii_receptor.log")
+		with open(path, "a", encoding="utf-8") as handle:
+			handle.write(f"{now_datetime()} {text}\n")
+	except Exception:
+		pass
+
+
+def _debug_dir():
+	path = frappe.get_site_path("private", "files", "dgii_compliance", DEBUG_SUBDIR)
+	os.makedirs(path, exist_ok=True)
+	return path
+
+
+def _save_debug(prefix, encf, data):
+	"""Persists the raw e-CF / ARECF so failed DGII tests can be diagnosed."""
+	if getattr(frappe.flags, "in_test", False):
+		return None
+	try:
+		timestamp = now_datetime().strftime("%Y%m%d_%H%M%S_%f")
+		safe_encf = re.sub(r"[^A-Za-z0-9_.-]", "_", encf or "unknown")
+		suffix = ".json" if isinstance(data, (dict, list)) else ".xml"
+		path = os.path.join(_debug_dir(), f"{timestamp}_{prefix}_{safe_encf}{suffix}")
+		if isinstance(data, (dict, list)):
+			with open(path, "w", encoding="utf-8") as handle:
+				json.dump(data, handle, ensure_ascii=False, indent=2, default=str)
+		else:
+			if isinstance(data, str):
+				data = data.encode("utf-8")
+			with open(path, "wb") as handle:
+				handle.write(data)
+		return path
+	except Exception as exc:
+		_log("No se pudo guardar el debug del receptor: %s", exc)
+		return None
+
+
+def _request_info():
+	request = frappe.request
+	if not request:
+		return {}
+	return {
+		"remote_addr": getattr(request, "remote_addr", None),
+		"method": getattr(request, "method", None),
+		"content_type": getattr(request, "content_type", None),
+		"content_length": getattr(request, "content_length", None),
+		"user_agent": request.headers.get("User-Agent"),
+		"authorization_present": bool(request.headers.get("Authorization")),
+	}
+
+
+def _conf_flag(name):
+	value = (frappe.conf or {}).get(name)
+	return bool(cint(value)) if value is not None else False
+
+
+def _receptor_rnc():
+	return ((frappe.conf or {}).get("dgii_receptor_rnc") or "").strip()
 
 
 def _read_uploaded_xml():
@@ -36,18 +130,29 @@ def _read_uploaded_xml():
 	return data or None
 
 
-def _verify_signature(root):
-	"""Verifies the enveloped signature using the embedded X509 certificate."""
+def _verify_signature_detail(root):
+	"""Verifies the enveloped signature using the embedded X509 certificate.
+
+	Returns ``(ok, error)``. The error text is only used for diagnostics.
+	"""
 	cert_b64 = root.findtext(f".//{DS_NS}X509Certificate")
 	if not cert_b64:
-		return False
+		return False, "No se encontró X509Certificate en la firma"
 	try:
 		cert = x509.load_der_x509_certificate(base64.b64decode(cert_b64))
 		pem = cert.public_bytes(serialization.Encoding.PEM)
 		XMLVerifier().verify(root, x509_cert=pem)
-		return True
-	except Exception:
-		return False
+		return True, None
+	except Exception as exc:
+		return False, f"{type(exc).__name__}: {exc}"
+
+
+def _verify_signature(root):
+	return _verify_signature_detail(root)[0]
+
+
+def _has_signature(root):
+	return root.find(f".//{DS_NS}Signature") is not None
 
 
 def _extract(root):
@@ -60,34 +165,109 @@ def _extract(root):
 
 
 def _is_duplicate(rnc_emisor, encf):
+	"""Only accepted receptions count as duplicates.
+
+	Rejected attempts are stored for diagnostics and must not block DGII from
+	retrying the same e-NCF after we fix a verification issue.
+	"""
 	return bool(
 		frappe.db.exists(
-			"eCF", {"direction": "Recibido", "rnc_emisor": rnc_emisor, "encf": encf}
+			"eCF",
+			{
+				"direction": "Recibido",
+				"status": "accepted",
+				"rnc_emisor": rnc_emisor,
+				"encf": encf,
+			},
 		)
 	)
 
 
 def process_recepcion(raw):
 	"""Pure-ish receipt logic. Returns a dict with the ARECF and the state."""
+	info = _request_info()
+	parse_error = None
+	root = None
+	tipo = encf = rnc_emisor = rnc_comprador = ""
+	schema_errors = []
+	signature_ok = False
+	signature_error = "No se procesó la firma"
+
 	try:
 		root = etree.fromstring(raw)
-	except Exception:
-		return {"estado": 1, "motivo": arecf.MOTIVO_ERROR_ESPECIFICACION, "arecf": None}
+	except Exception as exc:
+		parse_error = f"{type(exc).__name__}: {exc}"
+		_log("Recepción: XML no parseable (%s)", parse_error)
+		raw_path = _save_debug("request", "unparseable", raw)
+		result = {
+			"estado": 1,
+			"motivo": arecf.MOTIVO_ERROR_ESPECIFICACION,
+			"arecf": None,
+			"tipo": tipo,
+			"encf": encf,
+			"rnc_emisor": rnc_emisor,
+			"rnc_comprador": rnc_comprador,
+			"rnc_receptor": _receptor_rnc(),
+			"root": None,
+			"raw": raw,
+			"parse_error": parse_error,
+			"schema_errors": ["XML no parseable"],
+			"signature_ok": False,
+			"signature_error": signature_error,
+			"soft_signature": False,
+			"request": info,
+			"raw_debug_path": raw_path,
+		}
+		_log("Recepción RECHAZADA parse_error=%s raw=%s", parse_error, raw_path)
+		return result
 
 	tipo, encf, rnc_emisor, rnc_comprador = _extract(root)
+
+	if tipo and encf and rnc_emisor:
+		try:
+			schema_errors = get_xml_schema_errors(root, f"E{tipo}")
+		except Exception as exc:
+			schema_errors = [f"{type(exc).__name__}: {exc}"]
+		signature_ok, signature_error = _verify_signature_detail(root)
+	else:
+		schema_errors = ["Faltan campos obligatorios del e-CF"]
+		signature_error = "No se verificó la firma: faltan campos obligatorios"
+
+	# The ARECF's RNCComprador identifies the taxpayer that issues the acuse
+	# (us), not necessarily the buyer printed on the incoming e-CF.
+	rnc_receptor = _receptor_rnc() or rnc_comprador
 	estado, motivo = 0, None
 
-	if not (tipo and encf and rnc_emisor and rnc_comprador):
+	if not (tipo and encf and rnc_emisor and rnc_receptor):
 		estado, motivo = 1, arecf.MOTIVO_ERROR_ESPECIFICACION
-	elif not validate_xml_schema(root, f"E{tipo}"):
+	elif schema_errors:
 		estado, motivo = 1, arecf.MOTIVO_ERROR_ESPECIFICACION
-	elif not _verify_signature(root):
-		estado, motivo = 1, arecf.MOTIVO_ERROR_FIRMA
+	elif not signature_ok:
+		if _conf_flag("dgii_receptor_soft_signature") and _has_signature(root):
+			_log(
+				"Recepción: firma no verificable para %s/%s, aceptada por "
+				"dgii_receptor_soft_signature (%s)",
+				rnc_emisor,
+				encf,
+				signature_error,
+			)
+		else:
+			estado, motivo = 1, arecf.MOTIVO_ERROR_FIRMA
 	elif _is_duplicate(rnc_emisor, encf):
 		estado, motivo = 1, arecf.MOTIVO_ENVIO_DUPLICADO
 
-	arecf_xml = arecf.build_signed(rnc_emisor, encf, rnc_comprador, estado=estado, motivo=motivo)
-	return {
+	arecf_xml = None
+	if rnc_emisor and encf and rnc_receptor:
+		try:
+			arecf_xml = arecf.build_signed(
+				rnc_emisor, encf, rnc_receptor, estado=estado, motivo=motivo
+			)
+		except Exception as exc:
+			_log("Recepción: no se pudo construir/firmar el ARECF: %s", exc)
+
+	raw_path = _save_debug("request", encf, raw)
+	arecf_path = _save_debug("arecf", encf, arecf_xml or "")
+	result = {
 		"estado": estado,
 		"motivo": motivo,
 		"arecf": arecf_xml,
@@ -95,29 +275,84 @@ def process_recepcion(raw):
 		"encf": encf,
 		"rnc_emisor": rnc_emisor,
 		"rnc_comprador": rnc_comprador,
+		"rnc_receptor": rnc_receptor,
 		"root": root,
 		"raw": raw,
+		"parse_error": parse_error,
+		"schema_errors": schema_errors,
+		"signature_ok": signature_ok,
+		"signature_error": signature_error,
+		"soft_signature": estado == 0 and not signature_ok and _has_signature(root),
+		"request": info,
+		"raw_debug_path": raw_path,
+		"arecf_debug_path": arecf_path,
 	}
+	_save_debug("result", encf, result)
+	_log(
+		"Recepción ip=%s tipo=%s encf=%s emisor=%s comprador=%s receptor=%s "
+		"estado=%s motivo=%s schema=%s firma=%s error_firma=%s raw=%s arecf=%s",
+		info.get("remote_addr"),
+		tipo,
+		encf,
+		rnc_emisor,
+		rnc_comprador,
+		rnc_receptor,
+		estado,
+		motivo,
+		schema_errors or "ok",
+		"ok" if signature_ok else "error",
+		signature_error,
+		raw_path,
+		arecf_path,
+	)
+	return result
 
 
-def _store_received(result):
+def _store_attempt(result):
+	"""Stores every reception attempt so the eCF list shows DGII's tests.
+
+	Rejected attempts use ``status=rejected`` and do not count as duplicates.
+	"""
+	if not frappe.db:
+		return None
+
+	motivo = result.get("motivo")
+	mensaje = MOTIVO_LABELS.get(motivo, "")
+	if result.get("parse_error"):
+		mensaje = f"XML no parseable: {result['parse_error']}"
+	elif result.get("schema_errors"):
+		mensaje = f"{mensaje}: {' | '.join(result['schema_errors'])}".strip(": ")
+	elif result.get("soft_signature"):
+		mensaje = f"{mensaje}: firma no verificada (modo prueba)".strip(": ")
+	if not mensaje:
+		mensaje = "Recibido correctamente" if result.get("estado") == 0 else "No recibido"
+
+	estado_label = "Recibido" if result.get("estado") == 0 else "No recibido"
+	status = "accepted" if result.get("estado") == 0 else "rejected"
+	if result.get("parse_error"):
+		status = "failed"
+
+	xml_value = result.get("raw") or b""
+	if isinstance(xml_value, bytes):
+		xml_value = xml_value.decode("utf-8", "replace")
+
 	doc = frappe.get_doc(
 		{
 			"doctype": "eCF",
 			"direction": "Recibido",
-			"rnc_emisor": result["rnc_emisor"],
-			"rnc_comprador": result["rnc_comprador"],
-			"encf": result["encf"],
-			"status": "accepted",
-			"estado": "Recibido",
+			"rnc_emisor": result.get("rnc_emisor") or None,
+			"rnc_comprador": result.get("rnc_comprador") or None,
+			"encf": result.get("encf") or None,
+			"status": status,
+			"estado": estado_label,
+			"mensaje": mensaje,
 			"received_at": now(),
-			"xml": result["raw"].decode("utf-8", "replace")
-			if isinstance(result["raw"], bytes)
-			else result["raw"],
-			"arecf_xml": result["arecf"],
+			"xml": xml_value,
+			"arecf_xml": result.get("arecf") or None,
 		}
 	)
 	doc.insert(ignore_permissions=True)
+	return doc.name
 
 
 def handle_recepcion():
@@ -125,8 +360,11 @@ def handle_recepcion():
 	if not raw:
 		return b"", 400, {}
 	result = process_recepcion(raw)
-	if result["estado"] == 0 and result["arecf"]:
-		_store_received(result)
+	try:
+		_stored = _store_attempt(result)
+		_log("Recepción: intento guardado en eCF %s", _stored)
+	except Exception as exc:
+		_log("Recepción: no se pudo guardar el intento en eCF: %s", exc)
 	return (result["arecf"] or "").encode("utf-8"), 200, XML_HEADERS
 
 

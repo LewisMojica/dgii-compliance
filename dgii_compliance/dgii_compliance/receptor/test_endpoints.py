@@ -43,23 +43,59 @@ class TestReceptor(unittest.TestCase):
 class TestProcessRecepcion(FrappeTestCase):
 	def test_accepts_valid_signed_ecf(self):
 		raw = _signed_ecf()
-		with patch.object(endpoints, "validate_xml_schema", return_value=True), patch.object(
+		with patch.object(endpoints, "get_xml_schema_errors", return_value=[]), patch.object(
 			endpoints.arecf, "build_signed", return_value="<ARECF/>"
 		):
 			result = endpoints.process_recepcion(raw)
 		self.assertEqual(result["estado"], 0)
 		self.assertEqual(result["encf"], "E310000004001")
 		self.assertEqual(result["arecf"], "<ARECF/>")
+		self.assertTrue(result["signature_ok"])
 
 	def test_rejects_bad_signature(self):
 		root = etree.fromstring(_signed_ecf())
 		root.find(".//RNCEmisor").text = "999999999"
-		with patch.object(endpoints, "validate_xml_schema", return_value=True), patch.object(
+		with patch.object(endpoints, "get_xml_schema_errors", return_value=[]), patch.object(
 			endpoints.arecf, "build_signed", return_value="<ARECF/>"
 		):
 			result = endpoints.process_recepcion(etree.tostring(root))
 		self.assertEqual(result["estado"], 1)
 		self.assertEqual(result["motivo"], 2)
+		self.assertFalse(result["signature_ok"])
+		self.assertTrue(result["signature_error"])
+
+	def test_soft_signature_accepts_when_enabled(self):
+		root = etree.fromstring(_signed_ecf())
+		root.find(".//RNCEmisor").text = "999999999"
+		with (
+			patch.object(endpoints, "get_xml_schema_errors", return_value=[]),
+			patch.object(endpoints, "_conf_flag", return_value=True),
+			patch.object(endpoints.arecf, "build_signed", return_value="<ARECF/>"),
+		):
+			result = endpoints.process_recepcion(etree.tostring(root))
+		self.assertEqual(result["estado"], 0)
+		self.assertTrue(result["soft_signature"])
+		self.assertFalse(result["signature_ok"])
+
+	def test_uses_configured_receptor_rnc_when_buyer_missing(self):
+		root = etree.fromstring(ECF)
+		buyer = root.find(".//RNCComprador")
+		buyer.getparent().remove(buyer)
+		root.find(".//RNCEmisor").text = "131880682"
+		root.find(".//eNCF").text = "E310000004099"
+		key_pem, cert_pem = generate_key_and_cert()
+		raw = etree.tostring(sign_xml(root, key_pem, cert_pem))
+		with (
+			patch.object(endpoints, "get_xml_schema_errors", return_value=[]),
+			patch.object(endpoints, "_receptor_rnc", return_value="133424959"),
+			patch.object(endpoints.arecf, "build_signed", return_value="<ARECF/>") as build,
+		):
+			result = endpoints.process_recepcion(raw)
+		self.assertEqual(result["estado"], 0)
+		self.assertEqual(result["rnc_comprador"], "")
+		self.assertEqual(result["rnc_receptor"], "133424959")
+		build.assert_called_once()
+		self.assertEqual(build.call_args.args[2], "133424959")
 
 	def test_rejects_duplicate(self):
 		frappe_doc = endpoints.frappe.get_doc(
@@ -74,7 +110,7 @@ class TestProcessRecepcion(FrappeTestCase):
 			}
 		)
 		frappe_doc.insert(ignore_permissions=True)
-		with patch.object(endpoints, "validate_xml_schema", return_value=True), patch.object(
+		with patch.object(endpoints, "get_xml_schema_errors", return_value=[]), patch.object(
 			endpoints.arecf, "build_signed", return_value="<ARECF/>"
 		):
 			result = endpoints.process_recepcion(_signed_ecf())

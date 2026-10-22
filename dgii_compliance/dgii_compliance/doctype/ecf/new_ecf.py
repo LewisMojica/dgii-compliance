@@ -14,6 +14,7 @@ from .signer import sign_ecf
 
 __all__ = [
 	"validate_xml_schema",
+	"get_xml_schema_errors",
 	"new_ecf",
 	"build_xml_ecf_E31",
 	"build_xml_ecf_E32",
@@ -27,6 +28,36 @@ __all__ = [
 ]
 
 
+XSD_NAME_MAP = {
+	"ACECF": "ACECF v.1.0.xsd",
+	"ARECF": "ARECF v1.0.xsd",
+	"E31": "e-CF 31 v.1.0.xsd",
+	"E32": "e-CF 32 v.1.0.xsd",
+	"E33": "e-CF 33 v.1.0.xsd",
+	"E34": "e-CF 34 v.1.0.xsd",
+	"E41": "e-CF 41 v.1.0.xsd",
+	"E43": "e-CF 43 v.1.0.xsd",
+	"E44": "e-CF 44 v.1.0.xsd",
+	"E45": "e-CF 45 v.1.0.xsd",
+	"E46": "e-CF 46 v.1.0.xsd",
+	"E47": "e-CF 47 v.1.0.xsd",
+}
+
+
+def _get_xsd_schema(eNCF_type):
+	xsd_path = frappe.get_app_path("dgii_compliance", "dgii_compliance") + "/xsd/" + XSD_NAME_MAP[eNCF_type]
+	with open(xsd_path, "rb") as xsd_file:
+		return etree.XMLSchema(etree.fromstring(xsd_file.read()))
+
+
+def get_xml_schema_errors(xml_object, eNCF_type):
+	"""Returns the XSD validation errors, or an empty list when the XML is valid."""
+	schema = _get_xsd_schema(eNCF_type)
+	if schema.validate(xml_object):
+		return []
+	return [f"Línea {error.line}: {error.message}" for error in schema.error_log] or ["desconocido"]
+
+
 def validate_xml_schema(xml_object, eNCF_type, raise_on_error=False):
 	"""Validates an XML document against the XSD for its type.
 
@@ -34,30 +65,12 @@ def validate_xml_schema(xml_object, eNCF_type, raise_on_error=False):
 	Comercial). Returns True when valid. When invalid, returns False, or raises
 	with the schema errors if ``raise_on_error`` is set.
 	"""
-	xsd_name_map = {
-		"ACECF": "ACECF v.1.0.xsd",
-		"ARECF": "ARECF v1.0.xsd",
-		"E31": "e-CF 31 v.1.0.xsd",
-		"E32": "e-CF 32 v.1.0.xsd",
-		"E33": "e-CF 33 v.1.0.xsd",
-		"E34": "e-CF 34 v.1.0.xsd",
-		"E41": "e-CF 41 v.1.0.xsd",
-		"E43": "e-CF 43 v.1.0.xsd",
-		"E44": "e-CF 44 v.1.0.xsd",
-		"E45": "e-CF 45 v.1.0.xsd",
-		"E46": "e-CF 46 v.1.0.xsd",
-		"E47": "e-CF 47 v.1.0.xsd",
-	}
-	xsd_path = frappe.get_app_path("dgii_compliance", "dgii_compliance") + "/xsd/" + xsd_name_map[eNCF_type]
-	with open(xsd_path, "rb") as xsd_file:
-		schema = etree.XMLSchema(etree.fromstring(xsd_file.read()))
-
-	if schema.validate(xml_object):
+	errors = get_xml_schema_errors(xml_object, eNCF_type)
+	if not errors:
 		return True
 
-	errors = " | ".join(f"Línea {e.line}: {e.message}" for e in schema.error_log) or "desconocido"
 	if raise_on_error:
-		frappe.throw(f"El XML {eNCF_type} no cumple el esquema: {errors}")
+		frappe.throw(f"El XML {eNCF_type} no cumple el esquema: {' | '.join(errors)}")
 	return False
 
 
