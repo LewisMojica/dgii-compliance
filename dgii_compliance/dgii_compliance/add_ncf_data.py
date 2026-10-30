@@ -1,4 +1,6 @@
 import frappe
+from frappe.utils import cint
+
 from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import new_ecf
 
 # e-NCF sequence prefixes: E + <type> + 10-digit sequence
@@ -16,12 +18,34 @@ ECF_SEQUENCE_PREFIX = {
 }
 
 
+def _reuse_ncf_on_amendment():
+	value = frappe.db.get_single_value("DGII Compliance Settings", "reuse_ncf_on_amendment")
+	# Preserve the historical behaviour on sites that have not migrated the setting yet.
+	return True if value is None else bool(cint(value))
+
+
+def _is_amended_invoice(doc):
+	return bool(doc.get("amended_from")) or (doc.name or "").count("-") == 4
+
+
+def _get_original_ncf(doc):
+	original_name = doc.get("amended_from") or (doc.name or "")[:19]
+	if not original_name:
+		return None
+	return frappe.db.get_value(doc.doctype, original_name, "custom_ncf")
+
+
+def _get_invoicing_method():
+	return frappe.get_single("DGII Compliance Settings").invoicing_method
+
+
 def main(doc,method):
 	"""
 	Generate or assign NCF (Número de Comprobante Fiscal) for Dominican Republic fiscal invoices.
 
-	- New invoices (3 dashes): generates sequential NCF from enabled sequences
-	- Cancelled invoices (4 dashes): copies NCF from original invoice
+	- New invoices: generates a sequential NCF from enabled sequences
+	- Amended NCF invoices: optionally reuses the original NCF (setting)
+	- eNCF invoices: always generate a new e-NCF and the corresponding e-CF
 	note: doc may be a POS Invoice or a Sales Invoice
 
 	Args:
@@ -37,76 +61,98 @@ def main(doc,method):
 		doc.custom_ncf_vencimiento = None
 		return
 
-	if doc.custom_factura_de_valor_fiscal:
+	if not doc.custom_factura_de_valor_fiscal:
+		return
 
-		if doc.get('custom_ecf_certification'):
-			# Certification invoices carry the e-NCF supplied by the DGII test
-			# set: do not consume a sequence, just generate the e-CF.
-			ncf_type = doc.get('custom_ecf_type')
-			if not doc.custom_ncf or not ncf_type:
-				frappe.throw('La factura de certificación requiere e-NCF y tipo e-CF.')
-			new_ecf(doc, ncf_type)
-			return
+	invoicing_method = _get_invoicing_method()
 
-		invoicing_method = frappe.get_single('DGII Compliance Settings').invoicing_method
-		ncf_type = doc.get('custom_ecf_type') or get_ncf_type(frappe.get_doc('Customer',doc.customer), invoicing_method)
-		ncf_seq_list = frappe.get_all('Secuencia NCF', filters = {'disabled': 0, 'ncf_type': ncf_type})
+	# Traditional NCF only: optionally reuse the cancelled invoice's NCF.
+	# e-CFs are sent immediately, so amended e-CF invoices must not reuse the e-NCF.
+	if (
+		invoicing_method == 'NCF'
+		and _reuse_ncf_on_amendment()
+		and _is_amended_invoice(doc)
+	):
+		original_ncf = _get_original_ncf(doc)
+		if not original_ncf:
+			frappe.throw(
+				'No se encontró el NCF de la factura original para la factura enmendada.'
+			)
+		doc.custom_ncf = original_ncf
+		return
 
-		#error check
-		if len(ncf_seq_list) == 0:
-			frappe.throw(f'No existen secuencias de ncf habilitadas para el tipo de ncf {ncf_type}. Contacte administrador del sistema')
-		if frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'end') < frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf'): #si el siguiente ncf no supera el ncf final se escribe un nuevo ncf en la factura
-			frappe.throw('next_ncf es mayor que end_ncf. Contacte administrador del sistema')
-		if frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'start') > frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf'): #si el siguiente ncf no supera el ncf final se escribe un nuevo ncf en la factura
-			frappe.throw('next_ncf es menor que start_ncf. Contacte administrador del sistema')
+	if invoicing_method == 'eNCF' and doc.get('custom_ecf_certification'):
+		# Certification invoices carry the e-NCF supplied by the DGII test
+		# set: do not consume a sequence, just generate the e-CF.
+		ncf_type = doc.get('custom_ecf_type')
+		if not doc.custom_ncf or not ncf_type:
+			frappe.throw('La factura de certificación requiere e-NCF y tipo e-CF.')
+		new_ecf(doc, ncf_type)
+		return
 
-		ncf_data = frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], ['end', 'next_ncf', 'start'], as_dict=True)
-		end_ncf = ncf_data.end
-		next_ncf = ncf_data.next_ncf
-		start_ncf = ncf_data.start
+	customer = frappe.get_doc('Customer', doc.customer)
+	if invoicing_method == 'eNCF':
+		ncf_type = doc.get('custom_ecf_type') or get_ncf_type(customer, invoicing_method)
+	else:
+		ncf_type = get_ncf_type(customer, invoicing_method)
 
-		#avisar si se estan agotando los ncf
-		no_ncf = end_ncf-start_ncf
-		if len(ncf_seq_list) < 2 and (next_ncf/no_ncf > 0.8 or end_ncf-2 < next_ncf):
-			frappe.msgprint(msg='Se están agotando los NCF',title='*Atención requerida')
+	ncf_seq_list = frappe.get_all('Secuencia NCF', filters = {'disabled': 0, 'ncf_type': ncf_type})
+
+	#error check
+	if len(ncf_seq_list) == 0:
+		frappe.throw(f'No existen secuencias de ncf habilitadas para el tipo de ncf {ncf_type}. Contacte administrador del sistema')
+	if frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'end') < frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf'): #si el siguiente ncf no supera el ncf final se escribe un nuevo ncf en la factura
+		frappe.throw('next_ncf es mayor que end_ncf. Contacte administrador del sistema')
+	if frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'start') > frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf'): #si el siguiente ncf no supera el ncf final se escribe un nuevo ncf en la factura
+		frappe.throw('next_ncf es menor que start_ncf. Contacte administrador del sistema')
+
+	ncf_data = frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], ['end', 'next_ncf', 'start'], as_dict=True)
+	end_ncf = ncf_data.end
+	next_ncf = ncf_data.next_ncf
+	start_ncf = ncf_data.start
+
+	#avisar si se estan agotando los ncf
+	no_ncf = end_ncf-start_ncf
+	if len(ncf_seq_list) < 2 and (next_ncf/no_ncf > 0.8 or end_ncf-2 < next_ncf):
+		frappe.msgprint(msg='Se están agotando los NCF',title='*Atención requerida')
 
 
-		if end_ncf < 1 or start_ncf < 1 or next_ncf < 1:
-			frappe.throw('uno o más valores del secuencia de ncf fuera de rango. Contacte administrador del sistema')
+	if end_ncf < 1 or start_ncf < 1 or next_ncf < 1:
+		frappe.throw('uno o más valores del secuencia de ncf fuera de rango. Contacte administrador del sistema')
 
 
 
 
-		#set new ncf
-		if ncf_type == 'B01':
-			formated_ncf = 100000000
-		elif ncf_type == 'B02':
-			formated_ncf = 200000000
-		elif ncf_type == 'B14':
-			formated_ncf = 1400000000
-		elif ncf_type == 'B15':
-			formated_ncf = 1500000000
-		elif ncf_type in ECF_SEQUENCE_PREFIX:
-			formated_ncf = ECF_SEQUENCE_PREFIX[ncf_type]
-		else:
-			frappe.throw(f'NCF {ncf_type} no es válido')
+	#set new ncf
+	if ncf_type == 'B01':
+		formated_ncf = 100000000
+	elif ncf_type == 'B02':
+		formated_ncf = 200000000
+	elif ncf_type == 'B14':
+		formated_ncf = 1400000000
+	elif ncf_type == 'B15':
+		formated_ncf = 1500000000
+	elif ncf_type in ECF_SEQUENCE_PREFIX:
+		formated_ncf = ECF_SEQUENCE_PREFIX[ncf_type]
+	else:
+		frappe.throw(f'NCF {ncf_type} no es válido')
 
-		formated_ncf += next_ncf
-		formated_ncf = str(formated_ncf).zfill(10)
-		doc.custom_ncf_vencimiento = frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'expiration_date')
+	formated_ncf += next_ncf
+	formated_ncf = str(formated_ncf).zfill(10)
+	doc.custom_ncf_vencimiento = frappe.db.get_value('Secuencia NCF', ncf_seq_list[0], 'expiration_date')
 
-		if invoicing_method == 'NCF':
-			doc.custom_ncf= f'B{formated_ncf}'
-		elif invoicing_method == 'eNCF':
-			doc.custom_ncf= f'E{formated_ncf}'
-			new_ecf(doc, ncf_type)
-		else:
-			frappe.throw('Metodo de facturación no válido, verifique configuración de DGII Compliance Metodo de facturación')
+	if invoicing_method == 'NCF':
+		doc.custom_ncf= f'B{formated_ncf}'
+	elif invoicing_method == 'eNCF':
+		doc.custom_ncf= f'E{formated_ncf}'
+		new_ecf(doc, ncf_type)
+	else:
+		frappe.throw('Metodo de facturación no válido, verifique configuración de DGII Compliance Metodo de facturación')
 
-		if end_ncf == next_ncf: # si se llego al final de la secuencia se deshabilita secuencia de ncf
-			frappe.db.set_value('Secuencia NCF', ncf_seq_list[0], {'disabled': 1, 'next_ncf': -1})
-		else:
-			frappe.db.set_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf', next_ncf+1)
+	if end_ncf == next_ncf: # si se llego al final de la secuencia se deshabilita secuencia de ncf
+		frappe.db.set_value('Secuencia NCF', ncf_seq_list[0], {'disabled': 1, 'next_ncf': -1})
+	else:
+		frappe.db.set_value('Secuencia NCF', ncf_seq_list[0], 'next_ncf', next_ncf+1)
 
 
 def get_ncf_type(customer, invoicing_method):
