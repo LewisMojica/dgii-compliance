@@ -8,6 +8,7 @@
   "facturación_section",
   "invoicing_method",
   "reuse_ncf_on_amendment",
+  "auto_send_ecf",
   "dgii_environment",
   "receptor_rnc",
   "allow_unverified_received_signatures",
@@ -70,13 +71,21 @@
    "fieldname": "reuse_ncf_on_amendment",
    "fieldtype": "Check",
    "label": "Reutilizar NCF en facturas enmendadas"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.invoicing_method == \"eNCF\"",
+   "description": "Envía automáticamente a DGII el e-CF generado al someter la factura. Si el envío falla, el e-CF queda pendiente para envío manual.",
+   "fieldname": "auto_send_ecf",
+   "fieldtype": "Check",
+   "label": "Enviar e-CF automáticamente"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-30 12:00:00.000000",
+ "modified": "2026-11-01 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "DGII Compliance",
  "name": "DGII Compliance Settings",

@@ -9,7 +9,7 @@ The environment is configured in DGII Compliance Settings (``dgii_environment``)
 import requests
 import frappe
 from frappe import _
-from frappe.utils import flt, get_datetime, now_datetime
+from frappe.utils import cint, flt, get_datetime, now_datetime
 from lxml import etree
 
 from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import (
@@ -430,6 +430,48 @@ def send_ecf_to_dgii(ecf_name):
 		"track_id": doc.track_id,
 		"mensaje": doc.mensaje,
 	}
+
+
+def _auto_send_ecf_enabled():
+	return bool(cint(frappe.db.get_single_value("DGII Compliance Settings", "auto_send_ecf")))
+
+
+def maybe_autosend_ecf(doc, method=None):
+	"""Enqueues DGII submission for the e-CF generated for a submitted invoice.
+
+	The e-CF is created in ``before_submit``. Sending is deferred until after
+	the invoice transaction commits so a DGII or network failure never rolls
+	back the invoice. If the job fails, the e-CF remains pending and can be
+	sent manually.
+	"""
+	if not _auto_send_ecf_enabled():
+		return
+
+	ecf_name = frappe.db.get_value(
+		"eCF",
+		{
+			"ref_doctype": doc.doctype,
+			"ref_name": doc.name,
+			"direction": "Emitido",
+			"status": "pending",
+		},
+		"name",
+	)
+	if not ecf_name:
+		return
+
+	try:
+		frappe.enqueue(
+			"dgii_compliance.dgii_compliance.dgii_client.send_ecf_to_dgii",
+			queue="short",
+			enqueue_after_commit=True,
+			ecf_name=ecf_name,
+		)
+	except Exception:
+		frappe.log_error(
+			title="No se pudo encolar el envío automático del e-CF",
+			message=frappe.get_traceback(),
+		)
 
 
 @frappe.whitelist()

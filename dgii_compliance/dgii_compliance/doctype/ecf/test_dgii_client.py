@@ -3,6 +3,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from dgii_compliance.dgii_compliance import dgii_client
@@ -188,3 +189,40 @@ class TestDGIIClient(FrappeTestCase):
 		)
 		with self.assertRaises(Exception):
 			dgii_client._guard_reference(root)
+
+	def test_autosend_enqueues_pending_ecf_after_commit(self):
+		doc = frappe._dict(doctype="Sales Invoice", name="ACC-SINV-2026-00001")
+		with (
+			patch.object(dgii_client, "_auto_send_ecf_enabled", return_value=True),
+			patch.object(dgii_client.frappe.db, "get_value", return_value="ECF-1"),
+			patch.object(dgii_client.frappe, "enqueue") as mock_enqueue,
+		):
+			dgii_client.maybe_autosend_ecf(doc)
+
+		mock_enqueue.assert_called_once()
+		kwargs = mock_enqueue.call_args.kwargs
+		self.assertTrue(kwargs["enqueue_after_commit"])
+		self.assertEqual(kwargs["ecf_name"], "ECF-1")
+
+	def test_autosend_skips_when_disabled(self):
+		doc = frappe._dict(doctype="Sales Invoice", name="ACC-SINV-2026-00001")
+		with (
+			patch.object(dgii_client, "_auto_send_ecf_enabled", return_value=False),
+			patch.object(dgii_client.frappe.db, "get_value") as mock_get_value,
+			patch.object(dgii_client.frappe, "enqueue") as mock_enqueue,
+		):
+			dgii_client.maybe_autosend_ecf(doc)
+
+		mock_get_value.assert_not_called()
+		mock_enqueue.assert_not_called()
+
+	def test_autosend_skips_when_no_pending_ecf(self):
+		doc = frappe._dict(doctype="Sales Invoice", name="ACC-SINV-2026-00001")
+		with (
+			patch.object(dgii_client, "_auto_send_ecf_enabled", return_value=True),
+			patch.object(dgii_client.frappe.db, "get_value", return_value=None),
+			patch.object(dgii_client.frappe, "enqueue") as mock_enqueue,
+		):
+			dgii_client.maybe_autosend_ecf(doc)
+
+		mock_enqueue.assert_not_called()

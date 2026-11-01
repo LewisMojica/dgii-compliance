@@ -18,8 +18,14 @@ page_renderer = [
 	"dgii_compliance.dgii_compliance.receptor.page_renderer.ReceptorPageRenderer",
 ]
 doc_events = {
-	"Sales Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
-	"POS Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
+	"Sales Invoice": {
+		"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"],
+		"on_submit": ["dgii_compliance.dgii_compliance.dgii_client.maybe_autosend_ecf"],
+	},
+	"POS Invoice": {
+		"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"],
+		"on_submit": ["dgii_compliance.dgii_compliance.dgii_client.maybe_autosend_ecf"],
+	},
 	'Customer': {'validate': ['dgii_compliance.dgii_compliance.validate.customer']}
 }
 doctype_js = {
