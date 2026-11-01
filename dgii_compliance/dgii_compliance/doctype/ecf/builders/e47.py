@@ -42,14 +42,11 @@ def build(doc):
 
 	common.emit_id_doc(encabezado, doc, "E47", ID_DOC_TAGS, tax_totals)
 	common.emit_emisor(encabezado, doc)
-	common.emit_comprador(encabezado, doc, "", require_rnc=False)
+	common.emit_comprador_e47(encabezado, doc)
 	common.emit_totales(encabezado, doc, present, tax_totals, cert)
 	common.emit_otra_moneda(encabezado, doc)
 
-	if cert:
-		common.emit_items(ecf_root, doc, rows, tax_totals, cert)
-	else:
-		append_detalles_items(ecf_root, doc, tax_totals)
+	common.emit_items(ecf_root, doc, rows, tax_totals, cert, e47=True)
 	common.emit_referencia(ecf_root, doc)
 	common.append_firma(ecf_root)
 	return ecf_root

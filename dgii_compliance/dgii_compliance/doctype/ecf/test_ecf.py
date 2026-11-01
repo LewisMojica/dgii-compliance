@@ -11,6 +11,7 @@ from cryptography.x509.oid import NameOID
 from frappe.tests.utils import FrappeTestCase
 from lxml import etree
 
+from dgii_compliance.dgii_compliance.doctype.ecf.builders import BUILDERS
 from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import (
 	build_xml_ecf_E43,
 	build_xml_ecf_E44,
@@ -211,3 +212,40 @@ class TestTier1Builders(FrappeTestCase):
 		self.assertEqual(xml.findtext("DetallesItems/Item/IndicadorFacturacion"), "3")
 		self.assertEqual(xml.findtext("Encabezado/Totales/ITBIS3"), "0")
 		self._validate(xml, "E46")
+
+	def test_e47_omits_comprador_for_consumer_final(self):
+		doc = _base_doc()
+		doc.customer_name = "Consumidor Final"
+		doc.tax_id = None
+		xml = BUILDERS["E47"](doc)
+		self.assertIsNone(xml.find("Encabezado/Comprador"))
+		self._validate(xml, "E47")
+
+	def test_e47_foreign_buyer_uses_minimal_comprador(self):
+		doc = _base_doc()
+		doc.customer_name = "ACME"
+		doc.tax_id = None
+		xml = BUILDERS["E47"](doc)
+		comprador = xml.find("Encabezado/Comprador")
+		self.assertIsNotNone(comprador)
+		self.assertIsNone(comprador.find("RNCComprador"))
+		self.assertEqual(comprador.findtext("RazonSocialComprador"), "ACME")
+		self._validate(xml, "E47")
+
+	def test_export_json_feeds_embarque_and_transporte(self):
+		doc = _base_doc(taxes=[_itbis_tax(18, 180.0)], grand_total=1180.0)
+		doc.custom_ecf_export_data = json.dumps(
+			{
+				"fecha_embarque": "2026-01-02",
+				"numero_embarque": "EMB-1",
+				"peso_bruto": 10.5,
+				"conductor": "Juan",
+				"placa": "A123",
+			}
+		)
+		xml = BUILDERS["E44"](doc)
+		self.assertEqual(
+			xml.findtext("Encabezado/InformacionesAdicionales/NumeroEmbarque"), "EMB-1"
+		)
+		self.assertEqual(xml.findtext("Encabezado/Transporte/Conductor"), "Juan")
+		self._validate(xml, "E44")

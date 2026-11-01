@@ -44,7 +44,7 @@ def build(doc):
 
 	common.emit_id_doc(encabezado, doc, "E46", ID_DOC_TAGS, tax_totals)
 	common.emit_emisor(encabezado, doc)
-	common.emit_comprador(encabezado, doc, "", require_rnc=False)
+	common.emit_comprador(encabezado, doc, "", require_rnc=False, include_pais=True)
 	common.emit_embarque(encabezado, doc)
 	common.emit_transporte(encabezado, doc)
 	common.emit_totales(encabezado, doc, present, tax_totals, cert)

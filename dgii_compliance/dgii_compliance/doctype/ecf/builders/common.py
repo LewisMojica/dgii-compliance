@@ -12,6 +12,8 @@ import frappe
 from frappe.utils import flt
 from lxml import etree
 
+from .accessors import get_buyer, get_emitter, get_export
+
 # --- Date ---
 
 
@@ -413,61 +415,81 @@ def emit_formas_pago(iddoc, doc):
 
 
 def emit_emisor(parent, doc):
+	data = get_emitter(doc)
 	emisor = etree.SubElement(parent, "Emisor")
-	add(emisor, "RNCEmisor", doc.company_tax_id)
-	add(emisor, "RazonSocialEmisor", should_use(doc, "custom_ecf_razon_social_emisor", doc.company))
-	add(emisor, "NombreComercial", opt(doc, "custom_ecf_nombre_comercial"))
-	add(emisor, "Sucursal", opt(doc, "custom_ecf_sucursal"))
-	add(emisor, "DireccionEmisor", should_use(doc, "custom_ecf_direccion_emisor", doc.company_address_display))
-	add(emisor, "Municipio", opt(doc, "custom_ecf_municipio"))
-	add(emisor, "Provincia", opt(doc, "custom_ecf_provincia"))
-	phones = [opt(doc, f"custom_ecf_telefono_emisor_{idx}") for idx in (1, 2, 3)]
-	phones = [phone for phone in phones if phone]
-	if phones:
+	add(emisor, "RNCEmisor", data["rnc"])
+	add(emisor, "RazonSocialEmisor", data["razon_social"])
+	add(emisor, "NombreComercial", data["nombre_comercial"])
+	add(emisor, "Sucursal", data["sucursal"])
+	add(emisor, "DireccionEmisor", data["direccion"])
+	add(emisor, "Municipio", data["municipio"])
+	add(emisor, "Provincia", data["provincia"])
+	if data["telefonos"]:
 		tabla = etree.SubElement(emisor, "TablaTelefonoEmisor")
-		for phone in phones:
+		for phone in data["telefonos"]:
 			add(tabla, "TelefonoEmisor", phone)
-	add(emisor, "CorreoEmisor", opt(doc, "custom_ecf_correo_emisor"))
-	add(emisor, "WebSite", opt(doc, "custom_ecf_web_site"))
-	add(emisor, "ActividadEconomica", opt(doc, "custom_ecf_actividad_economica"))
+	add(emisor, "CorreoEmisor", data["correo"])
+	add(emisor, "WebSite", data["web_site"])
+	add(emisor, "ActividadEconomica", data["actividad_economica"])
 	add(emisor, "CodigoVendedor", opt(doc, "custom_ecf_codigo_vendedor"))
 	add(emisor, "NumeroFacturaInterna", opt(doc, "custom_ecf_numero_factura_interna"))
 	add(emisor, "NumeroPedidoInterno", opt(doc, "custom_ecf_numero_pedido_interno"))
 	add(emisor, "ZonaVenta", opt(doc, "custom_ecf_zona_venta"))
 	add(emisor, "RutaVenta", opt(doc, "custom_ecf_ruta_venta"))
 	add(emisor, "InformacionAdicionalEmisor", opt(doc, "custom_ecf_informacion_adicional_emisor"))
-	emission = opt(doc, "custom_ecf_fecha_emision") or datetime.datetime.today().strftime("%d-%m-%Y")
-	add_date(emisor, "FechaEmision", emission)
+	add_date(emisor, "FechaEmision", data["fecha_emision"])
 	return emisor
 
 
-def emit_comprador(parent, doc, require_rnc_message, require_rnc=False):
+def emit_comprador(parent, doc, require_rnc_message, require_rnc=False, include_pais=False):
+	data = get_buyer(doc)
 	comprador = etree.SubElement(parent, "Comprador")
-	rnc = should_use(doc, "custom_ecf_rnc_comprador", get_comprador_rnc(doc))
+	rnc = data["rnc"]
 	if require_rnc and not rnc and not is_certification(doc):
 		frappe.throw(require_rnc_message)
 	add(comprador, "RNCComprador", rnc)
-	add(comprador, "IdentificadorExtranjero", opt(doc, "custom_ecf_identificador_extranjero"))
-	add(
-		comprador,
-		"RazonSocialComprador",
-		should_use(doc, "custom_ecf_razon_social_comprador", doc.customer_name or "Consumidor Final"),
-	)
-	add(comprador, "ContactoComprador", opt(doc, "custom_ecf_contacto_comprador"))
-	add(comprador, "CorreoComprador", opt(doc, "custom_ecf_correo_comprador"))
-	add(comprador, "DireccionComprador", opt(doc, "custom_ecf_direccion_comprador"))
-	add(comprador, "MunicipioComprador", opt(doc, "custom_ecf_municipio_comprador"))
-	add(comprador, "ProvinciaComprador", opt(doc, "custom_ecf_provincia_comprador"))
-	add(comprador, "PaisComprador", opt(doc, "custom_ecf_pais_comprador"))
-	add_date(comprador, "FechaEntrega", opt(doc, "custom_ecf_fecha_entrega"))
-	add(comprador, "ContactoEntrega", opt(doc, "custom_ecf_contacto_entrega"))
-	add(comprador, "DireccionEntrega", opt(doc, "custom_ecf_direccion_entrega"))
-	add(comprador, "TelefonoAdicional", opt(doc, "custom_ecf_telefono_adicional"))
-	add_date(comprador, "FechaOrdenCompra", opt(doc, "custom_ecf_fecha_orden_compra"))
-	add(comprador, "NumeroOrdenCompra", opt(doc, "custom_ecf_numero_orden_compra"))
-	add(comprador, "CodigoInternoComprador", opt(doc, "custom_ecf_codigo_interno_comprador"))
-	add(comprador, "ResponsablePago", opt(doc, "custom_ecf_responsable_pago"))
-	add(comprador, "InformacionAdicionalComprador", opt(doc, "custom_ecf_informacion_adicional_comprador"))
+	add(comprador, "IdentificadorExtranjero", data["identificador_extranjero"])
+	razon_social = data["razon_social"]
+	if not razon_social and not is_certification(doc):
+		razon_social = "Consumidor Final"
+	add(comprador, "RazonSocialComprador", razon_social)
+	add(comprador, "ContactoComprador", data["contacto"])
+	add(comprador, "CorreoComprador", data["correo"])
+	add(comprador, "DireccionComprador", data["direccion"])
+	add(comprador, "MunicipioComprador", data["municipio"])
+	add(comprador, "ProvinciaComprador", data["provincia"])
+	if include_pais:
+		add(comprador, "PaisComprador", data["pais"])
+	add_date(comprador, "FechaEntrega", data["fecha_entrega"])
+	add(comprador, "ContactoEntrega", data["contacto_entrega"])
+	add(comprador, "DireccionEntrega", data["direccion_entrega"])
+	add(comprador, "TelefonoAdicional", data["telefono_adicional"])
+	add_date(comprador, "FechaOrdenCompra", data["fecha_orden_compra"])
+	add(comprador, "NumeroOrdenCompra", data["numero_orden_compra"])
+	add(comprador, "CodigoInternoComprador", data["codigo_interno_comprador"])
+	add(comprador, "ResponsablePago", data["responsable_pago"])
+	add(comprador, "InformacionAdicionalComprador", data["informacion_adicional_comprador"])
+	return comprador
+
+
+def _export_value(doc, key):
+	value = get_export(doc).get(key)
+	if isinstance(value, str):
+		value = value.strip()
+	return value or None
+
+
+
+def emit_comprador_e47(parent, doc):
+	"""E47 only allows IdentificadorExtranjero and RazonSocialComprador."""
+	data = get_buyer(doc)
+	identificador = data["identificador_extranjero"]
+	razon = data["razon_social"]
+	if not identificador and (not razon or razon == "Consumidor Final"):
+		return None
+	comprador = etree.SubElement(parent, "Comprador")
+	add(comprador, "IdentificadorExtranjero", identificador)
+	add(comprador, "RazonSocialComprador", razon)
 	return comprador
 
 
@@ -476,18 +498,18 @@ def emit_embarque(parent, doc):
 		parent,
 		"InformacionesAdicionales",
 		[
-			("FechaEmbarque", opt(doc, "custom_ecf_fecha_embarque"), "date"),
-			("NumeroEmbarque", opt(doc, "custom_ecf_numero_embarque"), "text"),
-			("NumeroContenedor", opt(doc, "custom_ecf_numero_contenedor"), "text"),
-			("NumeroReferencia", opt(doc, "custom_ecf_numero_referencia"), "text"),
-			("PesoBruto", num(doc, "custom_ecf_peso_bruto"), "amount"),
-			("PesoNeto", num(doc, "custom_ecf_peso_neto"), "amount"),
-			("UnidadPesoBruto", opt(doc, "custom_ecf_unidad_peso_bruto"), "text"),
-			("UnidadPesoNeto", opt(doc, "custom_ecf_unidad_peso_neto"), "text"),
-			("CantidadBulto", num(doc, "custom_ecf_cantidad_bulto"), "amount"),
-			("UnidadBulto", opt(doc, "custom_ecf_unidad_bulto"), "text"),
-			("VolumenBulto", num(doc, "custom_ecf_volumen_bulto"), "amount"),
-			("UnidadVolumen", opt(doc, "custom_ecf_unidad_volumen"), "text"),
+			("FechaEmbarque", _export_value(doc, "fecha_embarque"), "date"),
+			("NumeroEmbarque", _export_value(doc, "numero_embarque"), "text"),
+			("NumeroContenedor", _export_value(doc, "numero_contenedor"), "text"),
+			("NumeroReferencia", _export_value(doc, "numero_referencia"), "text"),
+			("PesoBruto", _export_value(doc, "peso_bruto"), "amount"),
+			("PesoNeto", _export_value(doc, "peso_neto"), "amount"),
+			("UnidadPesoBruto", _export_value(doc, "unidad_peso_bruto"), "text"),
+			("UnidadPesoNeto", _export_value(doc, "unidad_peso_neto"), "text"),
+			("CantidadBulto", _export_value(doc, "cantidad_bulto"), "amount"),
+			("UnidadBulto", _export_value(doc, "unidad_bulto"), "text"),
+			("VolumenBulto", _export_value(doc, "volumen_bulto"), "amount"),
+			("UnidadVolumen", _export_value(doc, "unidad_volumen"), "text"),
 		],
 	)
 
@@ -497,13 +519,13 @@ def emit_transporte(parent, doc):
 		parent,
 		"Transporte",
 		[
-			("Conductor", opt(doc, "custom_ecf_conductor"), "text"),
-			("DocumentoTransporte", opt(doc, "custom_ecf_documento_transporte"), "text"),
-			("Ficha", opt(doc, "custom_ecf_ficha"), "text"),
-			("Placa", opt(doc, "custom_ecf_placa"), "text"),
-			("RutaTransporte", opt(doc, "custom_ecf_ruta_transporte"), "text"),
-			("ZonaTransporte", opt(doc, "custom_ecf_zona_transporte"), "text"),
-			("NumeroAlbaran", opt(doc, "custom_ecf_numero_albaran"), "text"),
+			("Conductor", _export_value(doc, "conductor"), "text"),
+			("DocumentoTransporte", _export_value(doc, "documento_transporte"), "text"),
+			("Ficha", _export_value(doc, "ficha"), "text"),
+			("Placa", _export_value(doc, "placa"), "text"),
+			("RutaTransporte", _export_value(doc, "ruta_transporte"), "text"),
+			("ZonaTransporte", _export_value(doc, "zona_transporte"), "text"),
+			("NumeroAlbaran", _export_value(doc, "numero_albaran"), "text"),
 		],
 	)
 
@@ -615,7 +637,7 @@ _SUBRECARGO_GROUP = [
 ]
 
 
-def emit_items(ecf_root, doc, rows, tax_totals, cert):
+def emit_items(ecf_root, doc, rows, tax_totals, cert, e47=False):
 	"""Emits <DetallesItems> for certification (values taken verbatim from rows)."""
 	detalles = etree.SubElement(ecf_root, "DetallesItems")
 	line_indicators = (tax_totals or {}).get("line_indicators") or []
@@ -628,7 +650,7 @@ def emit_items(ecf_root, doc, rows, tax_totals, cert):
 		_emit_child_group(node, doc, line, "custom_ecf_codigos_item", "TablaCodigosItem", "CodigosItem", _CODIGO_GROUP)
 		indicador = _row_value(row, "indicador_facturacion") or (line_indicators[idx] if idx < len(line_indicators) else None)
 		add(node, "IndicadorFacturacion", indicador)
-		_emit_retencion(node, row)
+		_emit_retencion_e47(node, row) if e47 else _emit_retencion(node, row)
 		add(node, "NombreItem", _row_value(row, "nombre_item") or item.item_name)
 		add(
 			node,
@@ -684,6 +706,18 @@ def _emit_retencion(node, row):
 			("MontoISRRetenido", opt(row, "monto_isr_retenido"), "text"),
 		],
 	)
+
+
+def _emit_retencion_e47(node, row):
+	"""E47 Retencion only permits ISR fields and is mandatory."""
+	indicador = _row_value(row, "indicador_agente_retencion") or "1"
+	monto = _row_value(row, "monto_isr_retenido")
+	if monto is None and row is not None:
+		monto = opt(row, "monto_itbis_retenido")
+	ret = etree.SubElement(node, "Retencion")
+	add(ret, "IndicadorAgenteRetencionoPercepcion", indicador)
+	add_amount_force(ret, "MontoISRRetenido", monto or 0)
+	return ret
 
 
 def _emit_otra_moneda_detalle(node, row):
