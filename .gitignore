@@ -6,3 +6,7 @@ tags
 node_modules
 __pycache__
 TODO.md
+docs/
+*.pem
+*.p12
+*.pfx

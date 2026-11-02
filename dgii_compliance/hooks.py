@@ -7,14 +7,31 @@ app_license = "gpl-3.0"
 fixtures = [
 	{"doctype": "Custom Field", "filters": { "module": "DGII Compliance" }},
 	{'doctype': 'Property Setter', 'filters': {'module': 'DGII Compliance'}},
+	{'doctype': 'Print Format', 'filters': {'module': 'DGII Compliance'}},
+]
+jinja = {
+	"methods": [
+		"dgii_compliance.dgii_compliance.ri.get_ri_data",
+	],
+}
+page_renderer = [
+	"dgii_compliance.dgii_compliance.receptor.page_renderer.ReceptorPageRenderer",
 ]
 doc_events = {
-	"Sales Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
-	"POS Invoice": {"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"]},
+	"Sales Invoice": {
+		"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"],
+		"on_submit": ["dgii_compliance.dgii_compliance.dgii_client.maybe_autosend_ecf"],
+	},
+	"POS Invoice": {
+		"before_submit": ["dgii_compliance.dgii_compliance.add_ncf_data.main"],
+		"on_submit": ["dgii_compliance.dgii_compliance.dgii_client.maybe_autosend_ecf"],
+	},
 	'Customer': {'validate': ['dgii_compliance.dgii_compliance.validate.customer']}
 }
-doctype_js = { 
+doctype_js = {
 	'Customer': "public/js/customer.js",
+	'Sales Invoice': "public/js/sales_invoice.js",
+	'POS Invoice': "public/js/sales_invoice.js",
 }
 scheduler_events = {
 	'daily': [
