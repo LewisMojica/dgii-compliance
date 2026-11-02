@@ -10,8 +10,8 @@ dynamic = ["version"]
 dependencies = [
     # "frappe~=15.0.0" # Installed and managed by bench.
     "openpyxl>=3.1,<4",
-    "signxml>=4.2,<5",
-    "cryptography>=46,<47",
+    "signxml>=4.3.1,<5",
+    "cryptography>=46,<51",
     "segno>=1.6,<2",
 ]
 
