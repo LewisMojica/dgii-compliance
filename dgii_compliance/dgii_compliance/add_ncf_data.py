@@ -36,7 +36,17 @@ def _get_original_ncf(doc):
 
 
 def _get_invoicing_method():
-	return frappe.get_single("DGII Compliance Settings").invoicing_method
+	return frappe.db.get_single_value("DGII Compliance Settings", "invoicing_method") or "NCF"
+
+
+@frappe.whitelist()
+def get_invoicing_method():
+	"""Returns the configured invoicing method for form scripts.
+
+	Reading the Single directly from the desk requires read permission on
+	``DGII Compliance Settings``, which ordinary invoicing users do not have.
+	"""
+	return _get_invoicing_method()
 
 
 def main(doc,method):

@@ -111,3 +111,9 @@ class TestNCFData(FrappeTestCase):
 		new_ecf = self._run(doc, method="NCF", reuse=True, next_ncf=7)
 		self.assertEqual(doc.custom_ncf, "B0100000007")
 		new_ecf.assert_not_called()
+
+	def test_get_invoicing_method_defaults_to_ncf(self):
+		with patch.object(add_ncf_data.frappe.db, "get_single_value", return_value=None):
+			self.assertEqual(add_ncf_data.get_invoicing_method(), "NCF")
+		with patch.object(add_ncf_data.frappe.db, "get_single_value", return_value="eNCF"):
+			self.assertEqual(add_ncf_data.get_invoicing_method(), "eNCF")

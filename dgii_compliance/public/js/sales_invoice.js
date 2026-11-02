@@ -4,10 +4,14 @@ function get_invoicing_method() {
 	if (invoicing_method_cache) {
 		return Promise.resolve(invoicing_method_cache);
 	}
-	return frappe.db
-		.get_single_value("DGII Compliance Settings", "invoicing_method")
+	return frappe
+		.xcall("dgii_compliance.dgii_compliance.add_ncf_data.get_invoicing_method")
 		.then((method) => {
 			invoicing_method_cache = method || "NCF";
+			return invoicing_method_cache;
+		})
+		.catch(() => {
+			invoicing_method_cache = "NCF";
 			return invoicing_method_cache;
 		});
 }
