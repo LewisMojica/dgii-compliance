@@ -3,6 +3,7 @@
 
 import datetime
 import json
+from unittest.mock import patch
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -12,6 +13,11 @@ from frappe.tests.utils import FrappeTestCase
 from lxml import etree
 
 from dgii_compliance.dgii_compliance.doctype.ecf.builders import BUILDERS
+from dgii_compliance.dgii_compliance.doctype.ecf.builders.accessors import (
+	get_buyer,
+	get_emitter,
+	normalize_phone,
+)
 from dgii_compliance.dgii_compliance.doctype.ecf.new_ecf import (
 	build_xml_ecf_E43,
 	build_xml_ecf_E44,
@@ -249,3 +255,44 @@ class TestTier1Builders(FrappeTestCase):
 		)
 		self.assertEqual(xml.findtext("Encabezado/Transporte/Conductor"), "Juan")
 		self._validate(xml, "E44")
+
+
+class TestPhoneNormalization(FrappeTestCase):
+	def test_normalizes_common_production_formats(self):
+		cases = {
+			"+1 (809) 433-4344": "809-433-4344",
+			"(829) 333-1234": "829-333-1234",
+			"809-433-4344": "809-433-4344",
+			"8094334344": "809-433-4344",
+			"1-849-555-0000": "849-555-0000",
+			"001-809-433-4344": "809-433-4344",
+			"08094334344": "809-433-4344",
+		}
+		for raw, expected in cases.items():
+			self.assertEqual(normalize_phone(raw), expected, raw)
+
+	def test_omits_unparseable_phones(self):
+		self.assertIsNone(normalize_phone(None))
+		self.assertIsNone(normalize_phone(""))
+		self.assertIsNone(normalize_phone("ext. 123"))
+		self.assertIsNone(normalize_phone("809-433"))
+		self.assertIsNone(normalize_phone("+1 809 433 4344 ext 12"))
+
+	def test_emitter_and_buyer_phones_are_normalized(self):
+		company = {
+			"company_name": "Emisora",
+			"tax_id": "101010101",
+			"custom_ecf_telefono_emisor_1": "+1 (809) 433-4344",
+			"custom_ecf_telefono_emisor_2": "(829) 333-1234",
+			"custom_ecf_telefono_emisor_3": None,
+		}
+		doc = _base_doc()
+		doc.custom_ecf_telefono_adicional = "+1 (849) 555-0000"
+		with patch(
+			"dgii_compliance.dgii_compliance.doctype.ecf.builders.accessors._get_doc",
+			return_value=company,
+		):
+			self.assertEqual(
+				get_emitter(doc)["telefonos"], ["809-433-4344", "829-333-1234"]
+			)
+		self.assertEqual(get_buyer(doc)["telefono_adicional"], "849-555-0000")

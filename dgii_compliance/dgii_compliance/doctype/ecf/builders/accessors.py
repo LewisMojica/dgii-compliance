@@ -7,6 +7,7 @@ Company, Customer, Address and the export JSON override field.
 
 import datetime
 import json
+import re
 
 import frappe
 
@@ -48,6 +49,33 @@ def _clean(value):
 	return value or None
 
 
+def normalize_phone(value):
+	"""Returns a DGII phone (``NNN-NNN-NNNN``) or ``None``.
+
+	``TelefonoValidationType`` only accepts ten digits in
+	``NNN-NNN-NNNN`` format. Production data commonly contains ``+1``,
+	parentheses, spaces and hyphens, so reduce it to the local number before
+	emitting the e-CF. Unparseable values are omitted (the fields are optional).
+	"""
+	value = _clean(value)
+	if not value:
+		return None
+
+	text = str(value).strip()
+	if re.fullmatch(r"\d{3}-\d{3}-\d{4}", text):
+		return text
+
+	digits = re.sub(r"\D", "", text)
+	if len(digits) > 10:
+		digits = digits.lstrip("0")
+		if len(digits) == 11 and digits.startswith("1"):
+			digits = digits[1:]
+
+	if len(digits) != 10:
+		return None
+	return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+
+
 def _company_value(company, fieldname):
 	if not company:
 		return None
@@ -61,10 +89,12 @@ def get_emitter(doc):
 	phones = []
 	if company:
 		phones = [
-			_company_value(company, "custom_ecf_telefono_emisor_1")
-			or _company_value(company, "phone_no"),
-			_company_value(company, "custom_ecf_telefono_emisor_2"),
-			_company_value(company, "custom_ecf_telefono_emisor_3"),
+			normalize_phone(
+				_company_value(company, "custom_ecf_telefono_emisor_1")
+				or _company_value(company, "phone_no")
+			),
+			normalize_phone(_company_value(company, "custom_ecf_telefono_emisor_2")),
+			normalize_phone(_company_value(company, "custom_ecf_telefono_emisor_3")),
 		]
 	return {
 		"rnc": _clean(doc.get("company_tax_id")) or _company_value(company, "tax_id"),
@@ -157,7 +187,7 @@ def get_buyer(doc):
 		"fecha_entrega": doc.get("custom_ecf_fecha_entrega"),
 		"contacto_entrega": _clean(doc.get("custom_ecf_contacto_entrega")),
 		"direccion_entrega": _clean(doc.get("custom_ecf_direccion_entrega")),
-		"telefono_adicional": _clean(doc.get("custom_ecf_telefono_adicional")),
+		"telefono_adicional": normalize_phone(doc.get("custom_ecf_telefono_adicional")),
 		"fecha_orden_compra": doc.get("po_date"),
 		"numero_orden_compra": _clean(doc.get("po_no")),
 		"codigo_interno_comprador": _clean(doc.get("custom_ecf_codigo_interno_comprador")),
